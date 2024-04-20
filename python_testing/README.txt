@@ -1,0 +1,2 @@
+The input file has the following format:
+<n>,new_line,new_line,<xpl n*n matrix, on different lines separated by new_line, different values separated by a space>,new_line (an empty line),<ypl, formatted as xpl>,[the following are optional]new_line (an empty line),<domain of x variables, a n*n matrix of booleans, otherwise formatted as xpl>,new_line (an empty line),<domain of y variables, formatted as xpl>
