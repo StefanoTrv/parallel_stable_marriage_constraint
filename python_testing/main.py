@@ -14,34 +14,28 @@ def main(input_file_path = "input.txt"):
                 x_domain[i].append(True)
                 y_domain[i].append(True)
     
-    #finds the current maxs and mins for all the variables
-    min_x = []
-    max_x = []
-    min_y = []
-    max_y = []
-    for i in range(n):
-        for j in range(n):
-            if x_domain[i][j]:
-                min_x.append(j)
-                break
-        for j in range(n):
-            if y_domain[i][j]:
-                min_y.append(j)
-                break
-        for j in reversed(range(n)):
-            if x_domain[i][j]:
-                max_x.append(j)
-                break
-        for j in reversed(range(n)):
-            if y_domain[i][j]:
-                max_y.append(j)
-                break
-    
     printer.print_preference_lists(n,xpl,ypl)
 
     printer.print_domains(n,x_domain,y_domain)
 
+    #computes the reverse matrixes
+    xPy = get_reverse_matrix(n,xpl)
+    yPx = get_reverse_matrix(n,ypl)
+
+    printer.print_reverse_matrixes(n,xPy,yPx)
+
     return
+
+def get_reverse_matrix(n,zpl):
+    zPz = []
+    for i in range(n):
+        l = []
+        for j in range(n):
+            l.append(-1)
+        for j in range(n):
+            l[zpl[i][j]]=j
+        zPz.append(l)
+    return zPz
 
 if __name__ == "__main__":
     main()
