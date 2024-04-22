@@ -3,7 +3,7 @@ def __print_inline(str):
 
 def print_preference_lists(n,xpl,ypl):
     #men
-    __print_inline("Men preference lists:\n\n")
+    __print_inline("\nMen preference lists:\n")
     __print_inline("_\t")
     for i in range(n):
         __print_inline(str(i)+"\t")
@@ -15,7 +15,7 @@ def print_preference_lists(n,xpl,ypl):
     __print_inline("\n")
 
     #women
-    __print_inline("Women preference lists:\n\n")
+    __print_inline("\nWomen preference lists:\n")
     __print_inline("_\t")
     for i in range(n):
         __print_inline(str(i)+"\t")
@@ -24,11 +24,11 @@ def print_preference_lists(n,xpl,ypl):
         for j in range(n):
             __print_inline(str(ypl[i][j])+"\t")
             
-    __print_inline("\n")
+    __print_inline("\n\n")
 
 def print_domains(n,x_dom,y_dom):
     #men
-    __print_inline("Men domains:\n\n")
+    __print_inline("\nMen domains:\n")
     __print_inline("_\t")
     for i in range(n):
         __print_inline(str(i)+"\t")
@@ -40,7 +40,7 @@ def print_domains(n,x_dom,y_dom):
     __print_inline("\n")
 
     #women
-    __print_inline("Women domains:\n\n")
+    __print_inline("\nWomen domains:\n")
     __print_inline("_\t")
     for i in range(n):
         __print_inline(str(i)+"\t")
@@ -49,11 +49,11 @@ def print_domains(n,x_dom,y_dom):
         for j in range(n):
             __print_inline(str(int(y_dom[i][j]))+"\t")
             
-    __print_inline("\n")
+    __print_inline("\n\n")
 
 def print_reverse_matrixes(n,xPy,yPx):
     #men
-    __print_inline("Men reversed matrix:\n\n")
+    __print_inline("\nMen reversed matrix:\n")
     __print_inline("_\t")
     for i in range(n):
         __print_inline(str(i)+"\t")
@@ -65,7 +65,7 @@ def print_reverse_matrixes(n,xPy,yPx):
     __print_inline("\n")
 
     #women
-    __print_inline("Women reversed matrix:\n\n")
+    __print_inline("\nWomen reversed matrix:\n")
     __print_inline("_\t")
     for i in range(n):
         __print_inline(str(i)+"\t")
@@ -74,4 +74,4 @@ def print_reverse_matrixes(n,xPy,yPx):
         for j in range(n):
             __print_inline(str(yPx[i][j])+"\t")
             
-    __print_inline("\n")
+    __print_inline("\n\n")

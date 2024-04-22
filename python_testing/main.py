@@ -24,6 +24,10 @@ def main(input_file_path = "input.txt"):
 
     printer.print_reverse_matrixes(n,xPy,yPx)
 
+    #initializes xlb and yub
+    xlb = [0] * n
+    yub = [n-1] * n
+
     return
 
 def get_reverse_matrix(n,zpl):
