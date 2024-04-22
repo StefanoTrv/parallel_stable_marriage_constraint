@@ -1,4 +1,5 @@
-from domain_functions import * 
+from domain_functions import *
+import utils.printer as printer
 
 def inst(i,n,x_domain,y_domain,xpl,ypl,xPy,yPx):
     for k in range(getVal(n,x_domain,i)):
@@ -27,9 +28,12 @@ def deltaMin(i,n,x_domain,y_domain,xpl,ypl,xPy,yPx,xlb):
 def deltaMax(j,n,x_domain,y_domain,xpl,ypl,xPy,yPx,yub):
     for k in range(getMax(n,y_domain,j)+1,yub[j]+1):
         i = ypl[j][k]
-        remVal(n,x_domain,i,xPy[i][j])
+        remVal(x_domain,i,xPy[i][j])
     yub[j] = getMax(n,y_domain,j)
 
 def init(n,x_domain,y_domain,xpl,ypl,xPy,yPx,xlb):
+    print("INIT!")
     for i in range(n):
         deltaMin(i,n,x_domain,y_domain,xpl,ypl,xPy,yPx,xlb)
+        print("deltaMin "+str(i))
+        printer.print_domains(n,x_domain,y_domain)
