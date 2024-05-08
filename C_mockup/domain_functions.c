@@ -91,7 +91,7 @@ void remVal(int n, uint32_t* domain, int index, int a){
     setDomainBit(domain,index,a,n,0);
 }
 
-int main() {
+/*int main() {
     // Example usage and testing
     int n = 4;
     uint32_t domain = 0xFFFFFFFF; // Initialize domain with all bits set to 1
@@ -143,4 +143,4 @@ int main() {
     printf("New value of domain: %u\n", domain);
 
     return 0;
-}
+}*/

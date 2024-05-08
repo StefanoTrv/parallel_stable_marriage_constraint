@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-void print_preference_lists(int n, int xpl[][n], int ypl[][n]) {
+void print_preference_lists(int n, int *xpl, int *ypl) {
     // Men
     printf("\nMen preference lists:\n");
     printf("_\t");
@@ -12,7 +12,7 @@ void print_preference_lists(int n, int xpl[][n], int ypl[][n]) {
     for (int i = 0; i < n; i++) {
         printf("\n%d:\t", i);
         for (int j = 0; j < n; j++) {
-            printf("%d\t", xpl[i][j]);
+            printf("%d\t", xpl[i*n+j]);
         }
     }
     
@@ -27,7 +27,7 @@ void print_preference_lists(int n, int xpl[][n], int ypl[][n]) {
     for (int i = 0; i < n; i++) {
         printf("\n%d:\t", i);
         for (int j = 0; j < n; j++) {
-            printf("%d\t", ypl[i][j]);
+            printf("%d\t", ypl[i*n+j]);
         }
     }
             
@@ -73,7 +73,7 @@ void print_domains(int n, uint32_t* x_dom, uint32_t* y_dom) {
     printf("\n\n");
 }
 
-void print_reverse_matrixes(int n, int xPy[][n], int yPx[][n]) {
+void print_reverse_matrixes(int n, int *xPy, int *yPx) {
     // Men
     printf("\nMen reversed matrix:\n");
     printf("_\t");
@@ -83,7 +83,7 @@ void print_reverse_matrixes(int n, int xPy[][n], int yPx[][n]) {
     for (int i = 0; i < n; i++) {
         printf("\n%d:\t", i);
         for (int j = 0; j < n; j++) {
-            printf("%d\t", xPy[i][j]);
+            printf("%d\t", xPy[i*n+j]);
         }
     }
     
@@ -98,14 +98,14 @@ void print_reverse_matrixes(int n, int xPy[][n], int yPx[][n]) {
     for (int i = 0; i < n; i++) {
         printf("\n%d:\t", i);
         for (int j = 0; j < n; j++) {
-            printf("%d\t", yPx[i][j]);
+            printf("%d\t", yPx[i*n+j]);
         }
     }
             
     printf("\n\n");
 }
 
-int main() {
+/*int main() {
     // Example usage
     int n = 3;
     int xpl[3][3] = {{0, 1, 2}, {1, 2, 0}, {2, 1, 0}};
@@ -122,4 +122,4 @@ int main() {
     print_reverse_matrixes(n, xPy, yPx);
 
     return 0;
-}
+}*/

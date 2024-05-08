@@ -5,7 +5,7 @@
 
 const uint32_t UNSIGNED_ONE = 1;
 
-void parse_input(const char *file_path, int *n, int ***xpl, int ***ypl, uint32_t **x_domain, uint32_t **y_domain) {
+void parse_input(const char *file_path, int *n, int **xpl, int **ypl, uint32_t **x_domain, uint32_t **y_domain) {
     FILE *file = fopen(file_path, "r");
     if (file == NULL) {
         fprintf(stderr, "Error opening file\n");
@@ -20,8 +20,8 @@ void parse_input(const char *file_path, int *n, int ***xpl, int ***ypl, uint32_t
 
     // Read n
     fscanf(file, "%d", n);
-    *xpl = (int **)malloc((*n) * sizeof(int *));
-    *ypl = (int **)malloc((*n) * sizeof(int *));
+    *xpl = (int *)malloc((*n) * (*n) * sizeof(int));
+    *ypl = (int *)malloc((*n) * (*n) * sizeof(int));
     *x_domain = NULL;
     *y_domain = NULL;
 
@@ -30,9 +30,8 @@ void parse_input(const char *file_path, int *n, int ***xpl, int ***ypl, uint32_t
 
     // Read xpl
     for (int i = 0; i < *n; i++) {
-        (*xpl)[i] = (int *)malloc((*n) * sizeof(int));
         for (int j = 0; j < *n; j++) {
-            fscanf(file, "%d", &(*xpl)[i][j]);
+            fscanf(file, "%d", &((*xpl)[i*(*n)+j]));
         }
     }
 
@@ -41,9 +40,8 @@ void parse_input(const char *file_path, int *n, int ***xpl, int ***ypl, uint32_t
 
     // Read ypl
     for (int i = 0; i < *n; i++) {
-        (*ypl)[i] = (int *)malloc((*n) * sizeof(int));
         for (int j = 0; j < *n; j++) {
-            fscanf(file, "%d", &(*ypl)[i][j]);
+            fscanf(file, "%d", &((*ypl)[i*(*n)+j]));
         }
     }
 
@@ -53,7 +51,6 @@ void parse_input(const char *file_path, int *n, int ***xpl, int ***ypl, uint32_t
     // Check if domains are present in the file
     if ((file_size - ftell(file)) >= ((*n) * (*n) * 2) / 32) {
         *x_domain = (uint32_t *)malloc((((*n) * (*n)) / 32 + ((*n) % 32 != 0)) * sizeof(uint32_t));
-        int *x_dom = (uint32_t *)malloc((((*n) * (*n)) / 32 + ((*n) % 32 != 0)) * sizeof(uint32_t));
         *y_domain = (uint32_t *)malloc((((*n) * (*n)) / 32 + ((*n) % 32 != 0)) * sizeof(uint32_t));
         // Read x_domain
         for (int i = 0; i < *n; i++) {
@@ -100,9 +97,9 @@ void parse_input(const char *file_path, int *n, int ***xpl, int ***ypl, uint32_t
     fclose(file);
 }
 
-int main() {
+/*int main() {
     int n, index, offset;
-    int **xpl, **ypl;
+    int *xpl, *ypl;
     uint32_t *x_domain, *y_domain;
 
     parse_input("input.txt", &n, &xpl, &ypl, &x_domain, &y_domain);
@@ -112,14 +109,14 @@ int main() {
     printf("xpl:\n");
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
-            printf("%d ", xpl[i][j]);
+            printf("%d ", xpl[i*n+j]);
         }
         printf("\n");
     }
     printf("ypl:\n");
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
-            printf("%d ", ypl[i][j]);
+            printf("%d ", ypl[i*n+j]);
         }
         printf("\n");
     }
@@ -145,10 +142,6 @@ int main() {
     }
 
     // Free memory
-    for (int i = 0; i < n; i++) {
-        free(xpl[i]);
-        free(ypl[i]);
-    }
     free(xpl);
     free(ypl);
     free(x_domain);
@@ -156,3 +149,4 @@ int main() {
 
     return 0;
 }
+*/
