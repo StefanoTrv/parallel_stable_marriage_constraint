@@ -14,8 +14,6 @@ int main(int argc, char *argv[]) {
         file_path = "input.txt";
     }
 
-    printf("%s",file_path);
-
     //Reads input data
     int n;
     int *xpl, *ypl;
@@ -28,11 +26,9 @@ int main(int argc, char *argv[]) {
         x_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
         y_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
         // Read x_domain
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < (n/32 + (n % 32 != 0)); j++) {
-                x_domain[i*n+j] = 4294967295;
-                y_domain[i*n+j] = 4294967295;
-            }
+        for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
+            x_domain[i] = 4294967295;
+            y_domain[i] = 4294967295;
         }
     }
 
@@ -42,34 +38,26 @@ int main(int argc, char *argv[]) {
 
     //Builds the reverse matrixes
     int *xPy, *yPx;
-    printf("Allocating...");
     xPy = (int *)malloc(n * n * sizeof(int));
-    if(xPy==NULL){printf("NULL!\n");}
-    printf("Allocating...");
     yPx = (int *)malloc(n * n * sizeof(int));
-    printf("\tpointers are: %i %i\n",xPy,yPx);
     build_reverse_matrix(n,xpl,xPy);
     build_reverse_matrix(n,ypl,yPx);
 
     print_reverse_matrixes(n,xPy,yPx);
 
     //Initializes xlb and yub
-    printf("Allocating...");
     int *xlb = (int *)malloc(n*sizeof(int));
     int *yub = (int *)malloc(n*sizeof(int));
-    printf("\tpointers are: %i %i\n",xlb,yub);
     for(int i=0;i<n;i++){
         xlb[i]=0;
         yub[i]=n-1;
     }
 
     //applies once the constraint
-    printf("Allocating...");
     uint32_t *old_x_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
     uint32_t *old_y_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
     uint32_t *prev_x_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
     uint32_t *prev_y_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
-    printf("\tpointers are: %i %i %i %i\n",old_x_domain,old_y_domain,prev_x_domain,prev_y_domain);
     for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
         old_x_domain[i]=x_domain[i];
         prev_x_domain[i]=x_domain[i];
@@ -131,7 +119,7 @@ int main(int argc, char *argv[]) {
     free(xpl);
     free(ypl);
     free(x_domain);
-    //free(y_domain);
+    free(y_domain);
     free(xPy);
     free(yPx);
     free(xlb);
@@ -141,16 +129,12 @@ int main(int argc, char *argv[]) {
     free(prev_x_domain);
     free(prev_y_domain);
 
-    printf("\nEnding...");
-
     return 0;
 }
 
 void build_reverse_matrix(int n,int *zpl, int *zPz){
-    printf("Building... %i %i\n",zpl,zPz);
     for(int i=0;i<n;i++){
         for(int j=0;j<n;j++){
-            printf("\tindex: %i\n",i*n+zpl[i*n+j]);
             zPz[i*n+zpl[i*n+j]]=j;
         }
     }
