@@ -74,7 +74,7 @@ int main(int argc, char *argv[]) {
     int n_blocks = props.multiProcessorCount;
     int block_size = (n + n_blocks - 1) / n_blocks;
     
-    my_kernel<<<n_blocks,block_size>>>();
+    my_kernel<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain);
 
     //copies from device memory
     HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));

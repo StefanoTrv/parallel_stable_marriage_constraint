@@ -22,7 +22,7 @@ void setBit(uint32_t* bitmap, int index, int val){
             //bitwise or
             bitmap[index/32] = bitmap[index/32] | ((UNS_ONE<< (sizeof (int)*8 - 1)) >> offset);
         }
-    };
+    }
 }
 
 void setDomainBit(uint32_t* bitmap, int row, int column, int n, int val){
