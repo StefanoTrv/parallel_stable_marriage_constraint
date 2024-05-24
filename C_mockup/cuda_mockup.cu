@@ -2,6 +2,8 @@
 #include "utils/io.c"
 #include "utils/printer.c"
 #include "domain_functions.c"
+#include "utils\error_handler.cu"
+#include "cuda_costraint.cu"
 
 void build_reverse_matrix(int,int*, int*);
 
@@ -45,7 +47,47 @@ int main(int argc, char *argv[]) {
 
     print_reverse_matrixes(n,xPy,yPx);
 
-    //applica il vincolo...
+    //copies into device memory
+    int *d_xpl, *d_ypl, *d_xPy, *d_yPx;
+    uint32_t *d_x_domain, *d_y_domain;
+
+    HANDLE_ERROR(cudaMalloc((void**)&d_xpl, sizeof(int) * n * n));
+    HANDLE_ERROR(cudaMalloc((void**)&d_ypl, sizeof(int) * n * n));
+    HANDLE_ERROR(cudaMalloc((void**)&d_xPy, sizeof(int) * n * n));
+    HANDLE_ERROR(cudaMalloc((void**)&d_yPx, sizeof(int) * n * n));
+    HANDLE_ERROR(cudaMalloc((void**)&d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t)));
+    HANDLE_ERROR(cudaMalloc((void**)&d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t)));
+
+    HANDLE_ERROR(cudaMemcpy(d_xpl, xpl, sizeof(int) * n * n, cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpy(d_ypl, ypl, sizeof(int) * n * n, cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpy(d_xPy, xPy, sizeof(int) * n * n, cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpy(d_yPx, yPx, sizeof(int) * n * n, cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpy(d_x_domain, x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpy(d_y_domain, y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyHostToDevice));
+
+    //runs kernels
+    int device;
+    cudaGetDevice(&device);
+
+    struct cudaDeviceProp props;
+    cudaGetDeviceProperties(&props, device);
+    int n_blocks = props.multiProcessorCount;
+    int block_size = (n + n_blocks - 1) / n_blocks;
+    
+    my_kernel<<<n_blocks,block_size>>>();
+
+    //copies from device memory
+    HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+    HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+
+    //frees device memory
+    HANDLE_ERROR(cudaFree(d_xpl));
+	HANDLE_ERROR(cudaFree(d_ypl));
+	HANDLE_ERROR(cudaFree(d_xPy));
+	HANDLE_ERROR(cudaFree(d_yPx));
+	HANDLE_ERROR(cudaFree(d_x_domain));
+	HANDLE_ERROR(cudaFree(d_y_domain));
+	
 
     print_domains(n,x_domain,y_domain);
 
