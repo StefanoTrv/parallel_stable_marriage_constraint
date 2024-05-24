@@ -33,3 +33,13 @@
 
 # Python
 __pycache__/
+
+
+# Cuda
+*.i
+*.ii
+*.gpu
+*.ptx
+*.cubin
+*.fatbin
+*.exp
