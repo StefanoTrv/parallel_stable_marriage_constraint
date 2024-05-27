@@ -16,5 +16,4 @@ __global__ void my_kernel(int n, int* d_xpl, int* d_ypl, int* d_xPy, int* d_yPx,
             printf("Error at %i, should be 1",id);
         }
     }
-
 }
