@@ -7,7 +7,7 @@ __global__ void my_kernel(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_
     if (id>= *length_men_stack + *length_women_stack){
         return;
     }
-    //gets person associated with thread
+    //gets person associated with thread and picks the correct data structures
     int person, other_person, other_index, temp;
     int is_man = id < *length_men_stack;
     int *old_min, *old_max, *other_zPz, *zpl, *other_array_mod, *length_stack;
@@ -34,13 +34,12 @@ __global__ void my_kernel(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_
         length_stack = length_women_stack;
     }
 
+    //scans the domain, looking for removed values
     for(int i=old_min[person]; i<=old_max[person];i++){
         if(getDomainBit2(person_domain,person,i,n)==0){//this bit is 0
             other_person = zpl[person*n+i];
-            printf("Person: %i\tOther_person: %i",person,other_person);
             if(getDomainBit2(other_domain,other_person,other_zPz[other_person*n+person],n)){//==1 other person's domain must be updated
                 other_index = other_zPz[other_person*n+person];
-                //printf("Person: %i\tOther_person: %i\tother_index: %i",person,other_person,other_index);
                 delDomainBit(other_domain,other_person,other_index,n);
                 if(!atomicExch(&(other_array_mod[other_person]),1)){//it wasn't marked as modified (it was 0)
                     temp = atomicAdd(length_stack,1);

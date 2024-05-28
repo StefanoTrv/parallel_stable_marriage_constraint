@@ -21,6 +21,5 @@ __device__ void delBit(uint32_t* bitmap, int index){
 }
 
 __device__ void delDomainBit(uint32_t* bitmap, int row, int column, int n){
-    printf("Row: %i,\tColumn: %i,\tn: %i",row, column, n);
     delBit(bitmap,row*n+column);
 }

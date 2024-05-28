@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
 
     print_reverse_matrixes(n,xPy,yPx);
 
-    //prepares other data and copies into device memory
+    //prepares other data and copies it into device memory
     int *d_xpl, *d_ypl, *d_xPy, *d_yPx;
     uint32_t *d_x_domain, *d_y_domain;
 
