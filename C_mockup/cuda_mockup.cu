@@ -38,6 +38,16 @@ int main(int argc, char *argv[]) {
 
     print_domains(n, x_domain, y_domain);
 
+    //---------------
+    //TESTING
+    //---------------
+    setDomainBit(x_domain,2,2,n,0);
+    setDomainBit(y_domain,3,3,n,0);
+    print_domains(n, x_domain, y_domain);
+    //---------------
+    //TESTING
+    //---------------
+
     //Builds the reverse matrixes
     int *xPy, *yPx;
     xPy = (int *)malloc(n * n * sizeof(int));
@@ -65,17 +75,19 @@ int main(int argc, char *argv[]) {
     HANDLE_ERROR(cudaMemcpy(d_x_domain, x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyHostToDevice));
     HANDLE_ERROR(cudaMemcpy(d_y_domain, y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyHostToDevice));
 
-    int *array_mod_men, *array_mod_women, *array_min_mod_men, *stack_mod_men, *stack_mod_women, *stack_mod_min_men;
-    int length_men_stack, length_women_stack, length_min_men_stack;
-    length_men_stack = n;
-    length_women_stack = n;
-    length_min_men_stack = n;
+    int *array_mod_men, *array_mod_women, *array_min_mod_men, *stack_mod_men, *stack_mod_women, *stack_mod_min_men, *length_men_stack, *length_women_stack, *length_min_men_stack;
 	HANDLE_ERROR(cudaHostAlloc((void**)&array_mod_men, sizeof (int) * n, cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&array_mod_women, sizeof (int) * n, cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&array_min_mod_men, sizeof (int) * n, cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&stack_mod_men, sizeof (int) * n, cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&stack_mod_women, sizeof (int) * n, cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&stack_mod_min_men, sizeof (int) * n, cudaHostAllocMapped));
+	HANDLE_ERROR(cudaHostAlloc((void**)&length_men_stack, sizeof (int), cudaHostAllocMapped));
+	HANDLE_ERROR(cudaHostAlloc((void**)&length_women_stack, sizeof (int), cudaHostAllocMapped));
+	HANDLE_ERROR(cudaHostAlloc((void**)&length_min_men_stack, sizeof (int), cudaHostAllocMapped));
+    *length_men_stack = n;
+    *length_women_stack = n;
+    *length_min_men_stack = n;
     for (int i=0;i<n;i++){
         array_mod_men[i]=1;
         array_mod_women[i]=1;
@@ -84,6 +96,16 @@ int main(int argc, char *argv[]) {
         stack_mod_women[i]=i;
         stack_mod_min_men[i]=i;
     }
+    int *d_array_mod_men, *d_array_mod_women, *d_array_min_mod_men, *d_stack_mod_men, *d_stack_mod_women, *d_stack_mod_min_men, *d_length_men_stack, *d_length_women_stack, *d_length_min_men_stack;
+    HANDLE_ERROR(cudaHostGetDevicePointer(&d_array_mod_men, array_mod_men, 0));
+    HANDLE_ERROR(cudaHostGetDevicePointer(&d_array_mod_women, array_mod_women, 0));
+    HANDLE_ERROR(cudaHostGetDevicePointer(&d_array_min_mod_men, array_min_mod_men, 0));
+    HANDLE_ERROR(cudaHostGetDevicePointer(&d_stack_mod_men, stack_mod_men, 0));
+    HANDLE_ERROR(cudaHostGetDevicePointer(&d_stack_mod_women, stack_mod_women, 0));
+    HANDLE_ERROR(cudaHostGetDevicePointer(&d_stack_mod_min_men, stack_mod_min_men, 0));
+    HANDLE_ERROR(cudaHostGetDevicePointer(&d_length_men_stack, length_men_stack, 0));
+    HANDLE_ERROR(cudaHostGetDevicePointer(&d_length_women_stack, length_women_stack, 0));
+    HANDLE_ERROR(cudaHostGetDevicePointer(&d_length_min_men_stack, length_min_men_stack, 0));
 
     int *old_min_man, *old_max_man, *old_min_woman, *old_max_woman;
     int *d_old_min_man, *d_old_max_man, *d_old_min_woman, *d_old_max_woman;
@@ -116,7 +138,7 @@ int main(int argc, char *argv[]) {
     int n_blocks = props.multiProcessorCount;
     int block_size = (n + n_blocks - 1) / n_blocks;
     
-    my_kernel<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain);
+    my_kernel<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain,d_array_mod_men, d_array_mod_women, d_array_min_mod_men, d_stack_mod_men, d_stack_mod_women, d_length_men_stack, d_length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_man, d_old_max_man, d_old_min_woman, d_old_max_woman);
 
     //copies from device memory
     HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
@@ -136,6 +158,9 @@ int main(int argc, char *argv[]) {
     HANDLE_ERROR(cudaFreeHost(stack_mod_men));
     HANDLE_ERROR(cudaFreeHost(stack_mod_women));
     HANDLE_ERROR(cudaFreeHost(stack_mod_min_men));
+    HANDLE_ERROR(cudaFreeHost(length_men_stack));
+    HANDLE_ERROR(cudaFreeHost(length_women_stack));
+    HANDLE_ERROR(cudaFreeHost(length_min_men_stack));
 
     HANDLE_ERROR(cudaFree(d_old_min_man));
     HANDLE_ERROR(cudaFree(d_old_max_man));
