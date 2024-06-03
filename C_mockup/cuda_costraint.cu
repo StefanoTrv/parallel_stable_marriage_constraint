@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include "utils/cuda_domain_functions.cu"
 
-__global__ void my_kernel(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_mod_men, int* array_mod_women, int* array_min_mod_men, int* stack_mod_men, int* stack_mod_women, int* length_men_stack, int* length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_man, int* old_max_man, int* old_min_woman, int* old_max_woman){
+// f1: removes from the women's domains the men who don't have that woman in their list (domain) anymore, and vice versa
+// Modifies only the domains
+__global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_mod_men, int* array_mod_women, int* array_min_mod_men, int* stack_mod_men, int* stack_mod_women, int* length_men_stack, int* length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women){
     int id = threadIdx.x + blockIdx.x * blockDim.x;
     //closes redundant threads
     if (id>= *length_men_stack + *length_women_stack){
@@ -14,8 +16,8 @@ __global__ void my_kernel(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_
     uint32_t *person_domain, *other_domain;
     if(is_man){
         person = stack_mod_men[id];
-        old_min =  old_min_man;
-        old_max = old_max_man;
+        old_min =  old_min_men;
+        old_max = old_max_men;
         person_domain = x_domain;
         other_domain = y_domain;
         zpl = xpl;
@@ -24,8 +26,8 @@ __global__ void my_kernel(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_
         length_stack = length_men_stack;
     } else {
         person = stack_mod_women[id - *length_men_stack];
-        old_min = old_min_woman;
-        old_max = old_max_woman;
+        old_min = old_min_women;
+        old_max = old_max_women;
         person_domain = y_domain;
         other_domain = x_domain;
         zpl = ypl;
@@ -44,7 +46,7 @@ __global__ void my_kernel(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_
                 if(!atomicExch(&(other_array_mod[other_person]),1)){//it wasn't marked as modified (it was 0)
                     temp = atomicAdd(length_stack,1);
                     other_array_mod[temp] = other_person;
-                    if(!is_man && old_min_man[other_person]==other_index){//updates array_min_mod_men if other_person is a man and the min was just removed
+                    if(!is_man && old_min_men[other_person]==other_index){//updates array_min_mod_men if other_person is a man and the min was just removed
                         array_min_mod_men[other_person] = 1;
                         temp = atomicAdd(length_min_men_stack,1);
                         stack_mod_min_men[temp]=other_person;
