@@ -145,7 +145,7 @@ int main(int argc, char *argv[]) {
         max_men[i]=n-1;
         max_women[i]=n-1;
         temp=0;
-        while(getDomainBit(x_domain,i,temp,n)==0&&temp<n){
+        while(temp<n&&getDomainBit(x_domain,i,temp,n)==0){
             temp++;
         }
         min_men[i]=temp;
@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
             }
             max_men[i]=temp;
         }
-        while(getDomainBit(y_domain,i,temp,n)==0&&temp<n){
+        while(temp<n&&getDomainBit(y_domain,i,temp,n)==0){
             temp++;
         }
         min_women[i]=temp;
@@ -192,6 +192,9 @@ int main(int argc, char *argv[]) {
     
     make_domains_coherent<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain,d_array_mod_men, d_array_mod_women, d_array_min_mod_men, d_stack_mod_men, d_stack_mod_women, d_length_men_stack, d_length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women);
 
+    block_size = (*length_min_men_stack + n_blocks - 1) / n_blocks;
+    apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain,d_array_mod_men, d_array_mod_women, d_array_min_mod_men, d_stack_mod_men, d_stack_mod_women, d_length_men_stack, d_length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
+    
     //copies from device memory
     HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
     HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
