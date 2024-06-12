@@ -57,8 +57,8 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
     }
 }
 
-//f2: applies the stable marriage constraint
-
+// f2: applies the stable marriage constraint
+// Modifies min_men, max_women and x_domain
 __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_mod_men, int* array_mod_women, int* array_min_mod_men, int* stack_mod_men, int* stack_mod_women, int* length_men_stack, int* length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* min_men, int* max_men, int* min_women, int* max_women){
     int id = threadIdx.x + blockIdx.x * blockDim.x;
     //closes redundant threads

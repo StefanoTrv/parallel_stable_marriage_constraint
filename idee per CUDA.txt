@@ -30,8 +30,7 @@ L'host si occupa di lanciare le diverse fasi di applicazione del vincolo.
 Le fasi sono le seguenti:
 - redere coerenti i domini: eliminare dai domini degli uomini le donne i cui domini non li contengono più, e viceversa
 - applicazione vera e propria del vincolo
-- finalizzazione della modifica dei domini
-- ripristino delle strutture dati
+- finalizzazione della modifica dei domini e ripristino delle strutture dati
 Le strutture dati passate ai kernel sono, oltre a quelle menzionate in precedenza e i domini: le due tabelle delle preferenze, le due tabelle delle preferenze invertite, i minimi e i massimi attuali di tutti i domini (diremo che sono salvati nei vettori min_men, max_men, min_women, max_women).
 
 Fun1: rendere coerenti i domini:
@@ -55,16 +54,12 @@ Viene effettuata una operazione atomica su max_women di w, in modo che ne legga 
 Questo processo continua fino a quando tutti i thread sono terminati. Si noti che i thread non comunicano fra loro quando trovano un dominio che è stato svuotato completamente, così da evitare gli overhead causati dalla sincronizzazione. Non c'è nessun tipo di sincronizzazione tra i thread, che procedono in modo indipendente (si vedano note a seguire).
 Dovrebbe essere possibile effettuare in contemporanea l'operazione simmetrica, ma la questione dovrebbe essere indagata più a fondo. Potrebbe essere necessario valutare con più attenzione i casi dei domini vuoti.
 
-Fun3: finalizzazione della modifica dei domini:
+Fun3: finalizzazione della modifica dei domini e ripristino delle strutture dati:
 Viene lanciato un thread per ogni donna, ovvero n thread. Quindi il thread imposta a 0 i bit del domini della sua donna w compresi tra max_women[w] e old_max_women[w], operando il più possibile a livello di byte, così da ridurre il numero di operazioni neccessarie (quindi usando eventualmente una mask in AND per il primo byte e settando tutti i successivi a 0).
-È possibile ridurre il numero di thread lanciati per eseguire questa operazione usando un vettore di booleani, acceduti atomicamente, un vettore "dinamico" di interi con una lunghezza associata, anch'essa acceduta in modo atomico, in cui segnare, durante l'applicazione del vincolo, tutte le donne in cui massimo viene modificato. È da stabilire se questa modifica (che introdurrebbe molte chiamate atomiche) porterebbe benefici o rallentamenti.
+È possibile ridurre il numero di thread lanciati per eseguire questa operazione usando un vettore di booleani, acceduti atomicamente, e un vettore "dinamico" di interi con una lunghezza associata, anch'essa acceduta in modo atomico, in cui segnare, durante l'applicazione del vincolo, tutte le donne in cui massimo viene modificato. È da stabilire se questa modifica (che introdurrebbe molte chiamate atomiche) porterebbe benefici o rallentamenti.
 (Nel caso simmetrico, si fa la stessa cosa per i massimi degli uomini.)
-
-Fun4: ripristino delle strutture dati:
-Prima del lancio, l'host mette a 0 le variabili relative alle lunghezze.
-Vengono lanciati n thread, a ognuno dei quali viene assegnato un i-esimo uomo e una i-esima donnna. Ogni thread aggiorna old_min_men, old_max_men, old_min_women e old_max_women con i nuovi massimi e minimi.
-
-Si potrebbe pensare, e se vengono lanciati n thread è la scelta migliore, di unire Fun3 e Fun4, così da eseguirle in contemporanea.
+Quindi ogni thread aggiorna, per un i-esimo uomo e una i-esima donna, old_min_men, old_max_men, old_min_women e old_max_women con i nuovi massimi e minimi (si noti che nel caso asimmetrico i valori in max_men e min_women possono essere valori peggiore dei massimi i minimi reali, quindi è necessario scorrere i domini a partire da questi punti per assicurarsi di trovare i valori reali).
+Dopo la chiusura dei kernel, l'host mette a 0 le variabili relative alle lunghezze.
 
 Qui è stato presentato il caso in cui ad ogni thread viene assegnato inizialmente un solo uomo. Nel caso ne ricevesse di più (o anche più uomini e donne nel caso simmetrico), il thread, quando dovrebbe terminare, invece di chiudere passa alla prossima persona nella sua lista, fino a terminarle tutte. Questo potrebbe, in alcuni casi, rendere ancora più sbilanciata la distribuzione di lavoro fra i diversi thread (non è detto però che sia veramente un problema).
 
