@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include "utils/cuda_domain_functions.cu"
 
+__constant__ uint32_t ALL_ONES = 4294967295;
+
 // f1: removes from the women's domains the men who don't have that woman in their list (domain) anymore, and vice versa
 // Modifies only the domains
 __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_mod_men, int* array_mod_women, int* array_min_mod_men, int* stack_mod_men, int* stack_mod_women, int* length_men_stack, int* length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women){
@@ -78,11 +80,14 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
     while(1){
         //finds the first woman remaining in m's domain/list
         w_index = min_men[m];
+        printf("w_index for man %i (thread %i): %i\n", m, id, w_index);
         while(w_index<=max_men[m] && getDomainBit2(x_domain,m,w_index,n)==0){
             w_index++;
         }
+        printf("new w_index for man %i (thread %i): %i\n", m, id, w_index);
         min_men[m]=w_index;
         if(w_index>max_men[m]){//empty domain
+            printf("EMPTY DOMAIN\n");
             return;
         }
         w = xpl[m*n+w_index];
@@ -91,11 +96,15 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
 
         //atomic read-and-write of max_women[w]
         p_val = atomicMin(max_women+w, m_val);
+        printf("p_val for man %i (thread %i): %i\n", m, id, p_val);
 
         if(m_val > p_val){//w prefers p to m
             delDomainBit(x_domain,m,w_index,n);
+            printf("Caso1 for man %i (thread %i)\n", m, id);
             //continue;//continues with the same m
         } else if(p_val==m_val){//w is already with m
+            printf("Caso2 for man %i (thread %i): RETURNING\n", m, id);
+
             return;//the thread has no free man to find a woman for
         } else {//m_val<p, that is w prefers m to p
             succ_val = m_val + 1;
@@ -104,8 +113,72 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
                 delDomainBit(x_domain,succ,xPy[succ*n+w],n);
                 succ_val++;
             }
+            printf("Caso3 for man %i (thread %i). New man: %i\n", m, id, ypl[w*n+p_val]);
             m = ypl[w*n+p_val];
             //continue;//continues with m:=p
         }
     }
+}
+
+//f3: finalizes the changes in the domains and computes the new old_maxes and old_mins
+// Modifies y_domain, old_min_men, old_max_women, old_max_men and old_min_women
+__global__ void finalize_changes(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_mod_men, int* array_mod_women, int* array_min_mod_men, int* stack_mod_men, int* stack_mod_women, int* length_men_stack, int* length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* min_men, int* max_men, int* min_women, int* max_women){
+    int id = threadIdx.x + blockIdx.x * blockDim.x;
+    //closes redundant threads
+    if (id>= n){
+        return;
+    }
+
+    printf("max_women[%i] = %i\n",id,max_women[id]);
+
+    //finalizes women's domains
+    int domain_offset = n * id;
+    int first_bit_index = max_women[id]+1 + domain_offset; //need to add offset to find the domain of current woman, not the first one
+    int last_bit_index = old_max_women[id] + domain_offset;
+    int span = last_bit_index - first_bit_index + 1;
+    int domain_index, n_bits, leftover_bits_in_word, offset;
+    
+    while(span>0){
+        if(first_bit_index << (sizeof (int) - 5) != 0 || span < 32){ //first_bit_index%32!=0, the last part of a word OR the first part of a word (beginning and/or end of area of interest)
+            printf("Deleting part of word for woman %i\n",id);
+            domain_index = first_bit_index>>5; //first_bit_index/32
+            offset = first_bit_index%32; //offset of the first bit in the word
+            leftover_bits_in_word = 32-offset; //the remaining bits from first_bit_index to the end of the word
+            n_bits = leftover_bits_in_word<span ? leftover_bits_in_word : span; //how many bits to put in this word
+            printf("Mask value for woman %i and n_bits %i and offset %i: %i\n",id,n_bits,offset,~((ALL_ONES<< (sizeof (int)*8 - n_bits)) >> offset));
+            atomicAnd(&y_domain[domain_index],~((ALL_ONES<< (sizeof (int)*8 - n_bits)) >> offset)); //atomically deletes the appropriate bits of the word
+            printf("test1 %i\n",(0<<17>>15));
+            printf("test2 %i\n",(1<<17>>15));
+            printf("test3 %i\n",(ALL_ONES));
+            span-=n_bits; //marks some bits as added
+            first_bit_index+=n_bits; //new index for the first bit that still hasn't been updated
+        }else{//span>32, whole word can be written
+            printf("Deleting whole word for woman %i\n",id);
+            domain_index = first_bit_index>>5; //first_bit_index/32
+            y_domain[domain_index]=0; //deletes whole word
+            span-=32; //marks some bits as added
+            first_bit_index+=32; //new index for the first bit that still hasn't been updated
+        }
+    }
+
+    //updates old_min_men, old_max_men, old_min_women, old_max_women
+    old_min_men[id]=min_men[id];
+    old_max_women[id]=max_women[id];
+
+    int new_m=max_men[id];//old_max_men
+    if(min_men[id]<=max_men[id]){
+        while(new_m>=0 && getDomainBit2(x_domain,id,new_m,n)==0){
+            new_m--;
+        }
+    }
+    old_max_men[id]=new_m;
+
+    new_m=min_women[id];//old_min_women
+    if(max_women[id]>=min_women[id]){
+        while(new_m<n && getDomainBit2(y_domain,id,new_m,n)==0){
+            new_m++;
+        }
+    }
+    old_min_women[id]=new_m;
+
 }

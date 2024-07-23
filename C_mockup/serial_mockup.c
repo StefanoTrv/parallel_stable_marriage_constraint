@@ -113,6 +113,10 @@ int main(int argc, char *argv[]) {
     for(int i = 0;i<n;i++){
         printf("%i",xpl[i*n+getMin(n,x_domain,i)]);
     }
+    printf("\n(in the index domain):\t");
+    for(int i = 0;i<n;i++){
+        printf("%i",getMin(n,x_domain,i));
+    }
     
     
     //Frees memory and closes

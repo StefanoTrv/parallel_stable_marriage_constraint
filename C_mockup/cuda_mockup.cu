@@ -40,16 +40,6 @@ int main(int argc, char *argv[]) {
 
     print_domains(n, x_domain, y_domain);
 
-    //---------------
-    //TESTING
-    //---------------
-    setDomainBit(x_domain,2,2,n,0);
-    setDomainBit(y_domain,3,3,n,0);
-    print_domains(n, x_domain, y_domain);
-    //---------------
-    //TESTING
-    //---------------
-
     //Builds the reverse matrixes
     int *xPy, *yPx;
     xPy = (int *)malloc(n * n * sizeof(int));
@@ -154,9 +144,11 @@ int main(int argc, char *argv[]) {
         }else{
             temp=n-1;
             while(getDomainBit(x_domain,i,temp,n)==0){//doesn't need to check for temp>=0 since we know it's not empty
+                printf("Found empty for man %i value %i",i,temp);
                 temp--;
             }
             max_men[i]=temp;
+            printf("max men[%i]=%i\n",i,max_men[i]);
         }
         while(temp<n&&getDomainBit(y_domain,i,temp,n)==0){
             temp++;
@@ -192,12 +184,38 @@ int main(int argc, char *argv[]) {
     
     make_domains_coherent<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain,d_array_mod_men, d_array_mod_women, d_array_min_mod_men, d_stack_mod_men, d_stack_mod_women, d_length_men_stack, d_length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women);
 
+    //debug
+    printf("After f1:\n");
+    HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+    HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+    print_domains(n,x_domain,y_domain);
+    //debug
+
     block_size = (*length_min_men_stack + n_blocks - 1) / n_blocks;
     apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain,d_array_mod_men, d_array_mod_women, d_array_min_mod_men, d_stack_mod_men, d_stack_mod_women, d_length_men_stack, d_length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
-    
+
+    //debug
+    printf("After f2:\n");
+    HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+    HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+    print_domains(n,x_domain,y_domain);
+    //debug
+
+    block_size = (n + n_blocks - 1) / n_blocks;
+    finalize_changes<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain,d_array_mod_men, d_array_mod_women, d_array_min_mod_men, d_stack_mod_men, d_stack_mod_women, d_length_men_stack, d_length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
+
     //copies from device memory
     HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
     HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+    HANDLE_ERROR(cudaMemcpy(old_min_men, d_old_min_men, sizeof(int) * n, cudaMemcpyDeviceToHost));
+    HANDLE_ERROR(cudaMemcpy(old_max_men, d_old_max_men, sizeof(int) * n, cudaMemcpyDeviceToHost));
+    HANDLE_ERROR(cudaMemcpy(old_min_women, d_old_min_women, sizeof(int) * n, cudaMemcpyDeviceToHost));
+    HANDLE_ERROR(cudaMemcpy(old_max_women, d_old_max_women, sizeof(int) * n, cudaMemcpyDeviceToHost));
+
+    //sets the lenghts to 0 (useless in this mockup)
+    *length_men_stack = 0;
+    *length_women_stack = 0;
+    *length_min_men_stack = 0;
 
     //frees device memory
     HANDLE_ERROR(cudaFree(d_xpl));
@@ -228,6 +246,10 @@ int main(int argc, char *argv[]) {
     printf("Men best:\n");
     for(int i = 0;i<n;i++){
         printf("%i",xpl[i*n+getMin(n,x_domain,i)]);
+    }
+    printf("\n(in the index domain):\t");
+    for(int i = 0;i<n;i++){
+        printf("%i",getMin(n,x_domain,i));
     }
     
     
