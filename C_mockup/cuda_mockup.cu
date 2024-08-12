@@ -16,7 +16,7 @@ int main(int argc, char *argv[]) {
         file_path = "input.txt";
     }
 
-    int temp;
+    int temp, *temp_p;
 
     //Reads input data
     int n;
@@ -67,19 +67,22 @@ int main(int argc, char *argv[]) {
     HANDLE_ERROR(cudaMemcpy(d_x_domain, x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyHostToDevice));
     HANDLE_ERROR(cudaMemcpy(d_y_domain, y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyHostToDevice));
 
-    int *array_mod_men, *array_mod_women, *array_min_mod_men, *stack_mod_men, *stack_mod_women, *stack_mod_min_men, *length_men_stack, *length_women_stack, *length_min_men_stack;
+    int *array_mod_men, *array_mod_women, *array_min_mod_men, *stack_mod_men, *stack_mod_women, *stack_mod_min_men, *new_stack_mod_min_men, *length_men_stack, *length_women_stack, *length_min_men_stack, *new_length_min_men_stack;
 	HANDLE_ERROR(cudaHostAlloc((void**)&array_mod_men, sizeof (int) * n, cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&array_mod_women, sizeof (int) * n, cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&array_min_mod_men, sizeof (int) * n, cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&stack_mod_men, sizeof (int) * n, cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&stack_mod_women, sizeof (int) * n, cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&stack_mod_min_men, sizeof (int) * n, cudaHostAllocMapped));
+	HANDLE_ERROR(cudaHostAlloc((void**)&new_stack_mod_min_men, sizeof (int) * n, cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&length_men_stack, sizeof (int), cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&length_women_stack, sizeof (int), cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&length_min_men_stack, sizeof (int), cudaHostAllocMapped));
+	HANDLE_ERROR(cudaHostAlloc((void**)&new_length_min_men_stack, sizeof (int), cudaHostAllocMapped));
     *length_men_stack = n;
     *length_women_stack = n;
     *length_min_men_stack = n;
+    *new_length_min_men_stack = 0;
     for (int i=0;i<n;i++){
         array_mod_men[i]=1;
         array_mod_women[i]=1;
@@ -88,16 +91,18 @@ int main(int argc, char *argv[]) {
         stack_mod_women[i]=i;
         stack_mod_min_men[i]=i;
     }
-    int *d_array_mod_men, *d_array_mod_women, *d_array_min_mod_men, *d_stack_mod_men, *d_stack_mod_women, *d_stack_mod_min_men, *d_length_men_stack, *d_length_women_stack, *d_length_min_men_stack;
+    int *d_array_mod_men, *d_array_mod_women, *d_array_min_mod_men, *d_stack_mod_men, *d_stack_mod_women, *d_stack_mod_min_men, *d_new_stack_mod_min_men, *d_length_men_stack, *d_length_women_stack, *d_length_min_men_stack, *d_new_length_min_men_stack;
     HANDLE_ERROR(cudaHostGetDevicePointer(&d_array_mod_men, array_mod_men, 0));
     HANDLE_ERROR(cudaHostGetDevicePointer(&d_array_mod_women, array_mod_women, 0));
     HANDLE_ERROR(cudaHostGetDevicePointer(&d_array_min_mod_men, array_min_mod_men, 0));
     HANDLE_ERROR(cudaHostGetDevicePointer(&d_stack_mod_men, stack_mod_men, 0));
     HANDLE_ERROR(cudaHostGetDevicePointer(&d_stack_mod_women, stack_mod_women, 0));
     HANDLE_ERROR(cudaHostGetDevicePointer(&d_stack_mod_min_men, stack_mod_min_men, 0));
+    HANDLE_ERROR(cudaHostGetDevicePointer(&d_new_stack_mod_min_men, new_stack_mod_min_men, 0));
     HANDLE_ERROR(cudaHostGetDevicePointer(&d_length_men_stack, length_men_stack, 0));
     HANDLE_ERROR(cudaHostGetDevicePointer(&d_length_women_stack, length_women_stack, 0));
     HANDLE_ERROR(cudaHostGetDevicePointer(&d_length_min_men_stack, length_min_men_stack, 0));
+    HANDLE_ERROR(cudaHostGetDevicePointer(&d_new_length_min_men_stack, new_length_min_men_stack, 0));
 
     int *old_min_men, *old_max_men, *old_min_women, *old_max_women;
     int *d_old_min_men, *d_old_max_men, *d_old_min_women, *d_old_max_women;
@@ -191,8 +196,32 @@ int main(int argc, char *argv[]) {
     print_domains(n,x_domain,y_domain);
     //debug
 
+    //empties array_min_mod_men
+    HANDLE_ERROR(cudaMemset(d_array_min_mod_men,0,sizeof(int)*n));
+
     block_size = (*length_min_men_stack + n_blocks - 1) / n_blocks;
-    apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain,d_array_mod_men, d_array_mod_women, d_array_min_mod_men, d_stack_mod_men, d_stack_mod_women, d_length_men_stack, d_length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
+    printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
+    apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
+    printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
+    while(*new_length_min_men_stack!=0){
+        //debug
+        printf("After f1:\n");
+        HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+        HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+        print_domains(n,x_domain,y_domain);
+        //debug
+
+        HANDLE_ERROR(cudaMemset(d_array_min_mod_men,0,sizeof(int)*n));
+        *length_min_men_stack = *new_length_min_men_stack;
+        *new_length_min_men_stack = 0;
+        temp_p = d_new_stack_mod_min_men;
+        d_new_stack_mod_min_men = d_stack_mod_min_men;
+        d_stack_mod_min_men = temp_p;
+        //temp_p = new_stack_mod_min_men;
+        //new_stack_mod_min_men = stack_mod_min_men;
+        //stack_mod_min_men = temp_p;
+        apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
+    }
 
     //debug
     printf("After f2:\n");
@@ -231,9 +260,11 @@ int main(int argc, char *argv[]) {
     HANDLE_ERROR(cudaFreeHost(stack_mod_men));
     HANDLE_ERROR(cudaFreeHost(stack_mod_women));
     HANDLE_ERROR(cudaFreeHost(stack_mod_min_men));
+    HANDLE_ERROR(cudaFreeHost(new_stack_mod_min_men));
     HANDLE_ERROR(cudaFreeHost(length_men_stack));
     HANDLE_ERROR(cudaFreeHost(length_women_stack));
     HANDLE_ERROR(cudaFreeHost(length_min_men_stack));
+    HANDLE_ERROR(cudaFreeHost(new_length_min_men_stack));
 
     HANDLE_ERROR(cudaFree(d_old_min_men));
     HANDLE_ERROR(cudaFree(d_old_max_men));
