@@ -102,6 +102,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
 
             //atomic read-and-write of max_women[w]
             p_val = atomicMin(max_women+w, m_val);
+            printf("New max for woman %i is %i (thread %i)\n",w,(p_val<m_val) ? p_val : m_val,id);
             printf("man %i is proposing to woman %i (with index %i) (thread %i)\n", m, w, p_val, id);
             printf("p_val for man %i (thread %i): %i\n", m, id, p_val);
             printf("m_val for man %i (thread %i): %i\n", m, id, m_val);
@@ -110,6 +111,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
                 delDomainBit(x_domain,m,w_index,n);
                 printf("Deleting woman %i (with index %i) from domain of man %i (thread %i), because the woman declined.\n",w,w_index,m,id);
                 old_min_men[m]=w_index+1;
+                printf("New old_min_men for man %i is %i\n",m,w_index+1);
                 printf("Caso1 for man %i (thread %i)\n", m, id);
                 //continue;//continues with the same m
             } else if(p_val==m_val){//w is already with m
@@ -130,27 +132,37 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
             }
         }else{//value not in domain
             old_min_men[m]=w_index+1;
+            printf("New old_min_men for man %i is %i\n",m,w_index+1);
             //continue;
             w = xpl[m*n+w_index];
             m_val = yPx[w*n+m];
             //atomic read-and-write of max_women[w]
             p_val = atomicMin(max_women+w, m_val-1);
+            printf("New max for woman %i is %i (thread %i)\n",w,((p_val<m_val-1) ? p_val : m_val-1),id);
             for(int i = m_val; i<=p_val; i++){//remove that woman from all the men that were removed from her domain //i=m_val+1? xk sn coerenti
                 if(getDomainBit2(y_domain,w,i,n)){//value wasn't already removed
                     m_ith=  ypl[w*n+i];
                     w_val = xPy[m_ith*n+w];
                     delDomainBit(x_domain,m_ith,w_val,n);
-                    printf("Deleted woman %i (value %i) from domain of man %i, because of changes in man %i (removed ).\n",w,w_val,m_ith,m_val);
+                    printf("Deleted woman %i (value %i) from domain of man %i, because of 0 value in man %i (thread %i).\n",w,w_val,m_ith,m_val,id);
                 }
             }
             if(p_val>m_val-1){//checks if the min of the last man has changed
+                printf("Thread %i checking if man %i needs to be updated later.\n",id,m_ith);
                 //m_ith=  ypl[w*n+p_val];
                 //w_val = xPy[m_ith*n+w];
                 if(min_men[m_ith]==w_val){//min was changed and probably won't be updated
                     if(!atomicExch(&(array_min_mod_men[m_ith]),1)){ //atomic exchange to avoid duplicates, may be overkill
                         new_stack_mod_min_men[atomicAdd(new_length_min_men_stack,1)]; //adds man to new stack
-                        printf("Thread %i increased new_length_min_men_stack to %i for man %i",id,new_length_min_men_stack,m_ith);
+                        printf("Thread %i increased new_length_min_men_stack to %i for man %i\n",id,new_length_min_men_stack,m_ith);
+                        printf("Thread %i found that man %i needs to be updated later.\n",id,m_ith);
+                    }else{
+                        printf("Thread %i found that man %i is already marked to be updated later.\n",id,m_ith);
+
                     }
+                }else{
+                    printf("Thread %i found that man %i wont' need to be updated later.\n",id,m_ith);
+
                 }
 
             }
@@ -158,21 +170,6 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
         
     }
 }
-
-//f2.5: adds again to stack_mod_min_men the men whose reported min is not in their domain anymore
-/*__global__ void check_again(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* min_men, int* max_men, int* min_women, int* max_women){
-    int id = threadIdx.x + blockIdx.x * blockDim.x;
-    int temp;
-    //closes redundant threads
-    if (id>= n){
-        return;
-    }
-    if(!getDomainBit2(x_domain,id,min_men[id],n)){//==0
-        temp = atomicAdd(length_min_men_stack,1);
-        stack_mod_min_men[temp]=id;
-    }
-
-}*/
 
 //f3: finalizes the changes in the domains and computes the new old_maxes and old_mins
 // Modifies y_domain, old_min_men, old_max_women, old_max_men and old_min_women
@@ -216,7 +213,7 @@ __global__ void finalize_changes(int n, int* xpl, int* ypl, int* xPy, int* yPx, 
     }
 
     //updates old_min_men, old_max_men, old_min_women, old_max_women
-    //old_min_men[id]=min_men[id];
+    min_men[id]=old_min_men[id];//because min_men is not kept updated
     old_max_women[id]=max_women[id];
 
     int new_m=max_men[id];//old_max_men

@@ -276,7 +276,15 @@ int main(int argc, char *argv[]) {
 
     printf("Men best:\n");
     for(int i = 0;i<n;i++){
-        printf("%i",xpl[i*n+getMin(n,x_domain,i)]);
+        if(getMax(n,y_domain,i)<0){
+            printf("EMPTYDOM_for_woman_'%i'",i);
+            return;
+        }
+        if(getMin(n,x_domain,i)<n){
+            printf("%i",xpl[i*n+getMin(n,x_domain,i)]);
+        } else{
+            printf("EMPTYDOM_for_man_'%i'",i);
+        }
     }
     printf("\n(in the index domain):\t");
     for(int i = 0;i<n;i++){
