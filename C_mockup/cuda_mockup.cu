@@ -278,7 +278,7 @@ int main(int argc, char *argv[]) {
     for(int i = 0;i<n;i++){
         if(getMax(n,y_domain,i)<0){
             printf("EMPTYDOM_for_woman_'%i'",i);
-            return;
+            return 0;
         }
         if(getMin(n,x_domain,i)<n){
             printf("%i",xpl[i*n+getMin(n,x_domain,i)]);
