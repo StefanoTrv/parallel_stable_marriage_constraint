@@ -1,6 +1,3 @@
-# Prerequisites
-*.d
-
 # Compiled Object files
 *.slo
 *.lo
@@ -18,7 +15,6 @@
 
 # Fortran module files
 *.mod
-*.smod
 
 # Compiled Static libraries
 *.lai
@@ -26,23 +22,16 @@
 *.a
 *.lib
 
+# Debug Information
+*.dSYM
+
 # Executables
 *.exe
 *.out
 *.app
 
-# Python
-__pycache__/
+# Actual Project Executables
 
-
-# Cuda
-*.i
-*.ii
-*.gpu
-*.ptx
-*.cubin
-*.fatbin
-*.exp
-
-#vscode settings
-.vscode
+pcg32-demo
+pcg32-global-demo
+pcg32x2-demo
