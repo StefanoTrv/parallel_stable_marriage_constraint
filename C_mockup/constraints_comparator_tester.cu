@@ -12,8 +12,8 @@
 #include "utils\pcg-c-basic-0.9\pcg_basic.c"
 
 void build_reverse_matrix(int,int*, int*);
-int serial_constraint(int, int*, int*, uint32_t*, uint32_t*);
-int cuda_constraint(int, int*, int*, uint32_t*, uint32_t*);
+void serial_constraint(int, int*, int*, uint32_t*, uint32_t*);
+void cuda_constraint(int, int*, int*, uint32_t*, uint32_t*);
 void build_reverse_matrix(int,int*, int*);
 int* make_random_preference_matrix(int);
 uint32_t* make_full_domain(int);
@@ -58,9 +58,19 @@ int main(int argc, char *argv[]) {
         printf("Test number %i\n",i);
         print_preference_lists(n,men_pl,women_pl);
         print_domains(n,men_domain,women_domain);
+
+        //TODO copy the domains before passing them
+        //serial_constraint(n,men_pl,women_pl,men_domain,women_domain);
+        cuda_constraint(n,men_pl,women_pl,men_domain,women_domain);
     }
 
     //cuda_constraint(0,NULL,NULL,NULL,NULL);
+
+    free(men_pl);
+    free(women_pl);
+    free(men_domain);
+    free(women_domain);
+
     return 0;
 }
 
@@ -69,32 +79,7 @@ int main(int argc, char *argv[]) {
     SERIAL CONSTRAINT
 */
 
-int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_domain) {
-    // Get file path from command line arguments or uses a default value
-    char *file_path;
-    file_path = "tests/paper87_doms.txt";
-
-    //Reads input data
-    /*int n;
-    int *xpl, *ypl;
-    uint32_t *x_domain, *y_domain;*/
-
-    parse_input(file_path, &n, &xpl, &ypl, &x_domain, &y_domain);
-
-    //If the input didn't include the domains, all the domains are initialized as full
-    if(x_domain==NULL){
-        x_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
-        y_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
-        // Read x_domain
-        for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
-            x_domain[i] = 4294967295;
-            y_domain[i] = 4294967295;
-        }
-    }
-
-    print_preference_lists(n,xpl,ypl);
-
-    print_domains(n, x_domain, y_domain);
+void serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_domain) {
 
     //Builds the reverse matrixes
     int *xPy, *yPx;
@@ -180,10 +165,6 @@ int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y
     
     
     //Frees memory and closes
-    free(xpl);
-    free(ypl);
-    free(x_domain);
-    free(y_domain);
     free(xPy);
     free(yPx);
     free(xlb);
@@ -192,42 +173,14 @@ int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y
     free(old_y_domain);
     free(prev_x_domain);
     free(prev_y_domain);
-
-    return 0;
 }
 
 /*
     CUDA CONSTRAINT
 */
 
-int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_domain) {
-    // Get file path from command line arguments or uses a default value
-    char *file_path;
-    file_path = "tests/paper87_doms.txt";
-
+void cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_domain) {
     int temp, *temp_p;
-
-    //Reads input data
-    /*int n;
-    int *xpl, *ypl;
-    uint32_t *x_domain, *y_domain;*/
-
-    parse_input(file_path, &n, &xpl, &ypl, &x_domain, &y_domain);
-
-    //If the input didn't include the domains, all the domains are initialized as full
-    if(x_domain==NULL){
-        x_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
-        y_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
-        // Read x_domain
-        for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
-            x_domain[i] = 4294967295;
-            y_domain[i] = 4294967295;
-        }
-    }
-
-    print_preference_lists(n,xpl,ypl);
-
-    print_domains(n, x_domain, y_domain);
 
     //Builds the reverse matrixes
     int *xPy, *yPx;
@@ -467,7 +420,7 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
     for(int i = 0;i<n;i++){
         if(getMax(n,y_domain,i)<0){
             printf("EMPTYDOM_for_woman_'%i'",i);
-            return 0;
+            break;
         }
         if(getMin(n,x_domain,i)<n){
             printf("%i",xpl[i*n+getMin(n,x_domain,i)]);
@@ -482,20 +435,12 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
     
     
     //Frees memory and closes
-    free(xpl);
-    free(ypl);
-    free(x_domain);
-    free(y_domain);
     free(xPy);
     free(yPx);
     free(old_min_men);
     free(old_min_women);
     free(old_max_men);
     free(old_max_women);
-
-    printf("\nClosing...");
-
-    return 0;
 }
 
 /*
