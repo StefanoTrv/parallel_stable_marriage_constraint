@@ -16,8 +16,9 @@ void serial_constraint(int, int*, int*, uint32_t*, uint32_t*);
 void cuda_constraint(int, int*, int*, uint32_t*, uint32_t*);
 void build_reverse_matrix(int,int*, int*);
 int* make_random_preference_matrix(int);
-uint32_t* make_full_domain(int);
-uint32_t* make_partial_domain(int);
+void make_full_domain(int,uint32_t*);
+void make_partial_domain(int,uint32_t*);
+void clone_domain(int, uint32_t*,uint32_t*);
 
 /*
     Executes the tests.
@@ -43,34 +44,42 @@ int main(int argc, char *argv[]) {
     pcg32_srandom(42, 42);
 
     int *men_pl, *women_pl;
-    uint32_t *men_domain, *women_domain;
+    uint32_t *men_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
+    uint32_t *women_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
+    uint32_t *men_domain_copy = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
+    uint32_t *women_domain_copy = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
 
     for(int i=0; i<total_tests; i++){
         men_pl = make_random_preference_matrix(n);
         women_pl = make_random_preference_matrix(n);
         if(i<compl_tests){
-            men_domain = make_full_domain(n);
-            women_domain = make_full_domain(n);
+            make_full_domain(n,men_domain);
+            make_full_domain(n,women_domain);
         } else {
-            men_domain = make_partial_domain(n);
-            women_domain = make_partial_domain(n);
+            make_partial_domain(n,men_domain);
+            make_partial_domain(n,women_domain);
         }
         printf("Test number %i\n",i);
         print_preference_lists(n,men_pl,women_pl);
         print_domains(n,men_domain,women_domain);
 
-        //TODO copy the domains before passing them
-        //serial_constraint(n,men_pl,women_pl,men_domain,women_domain);
-        cuda_constraint(n,men_pl,women_pl,men_domain,women_domain);
-    }
+        clone_domain(n,men_domain,men_domain_copy);
+        clone_domain(n,women_domain,women_domain_copy);
+        print_domains(n,men_domain_copy,women_domain_copy);
 
-    //cuda_constraint(0,NULL,NULL,NULL,NULL);
+        //serial_constraint(n,men_pl,women_pl,men_domain,women_domain);
+
+        //cuda_constraint(n,men_pl,women_pl,men_domain_copy,women_domain_copy);
+    }
 
     free(men_pl);
     free(women_pl);
     free(men_domain);
     free(women_domain);
+    free(men_domain_copy);
+    free(women_domain_copy);
 
+    printf("\nDone");
     return 0;
 }
 
@@ -483,23 +492,30 @@ int* make_random_preference_matrix(int n){
 
 /*
     Creates a full domain of given size
+    Takes a pointer to a properly allocated domain
 */
-uint32_t* make_full_domain(int n){
-    uint32_t *domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
+void make_full_domain(int n, uint32_t *domain){
     for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
         domain[i] = 4294967295;
     }
-    return domain;
 }
 
 /*
     Creates a randomized domain of given size
     Uses global rng defined in the pcg-basic-c library
+    Takes a pointer to a properly allocated domain
 */
-uint32_t* make_partial_domain(int n){
-    uint32_t *domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
+void make_partial_domain(int n, uint32_t *domain){
     for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
         domain[i] = pcg32_random();
     }
-    return domain;
+}
+
+/*
+    Taken a domain, it creates a copy
+*/
+void clone_domain(int n, uint32_t *old_domain, uint32_t *new_domain){
+    for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
+        new_domain[i] = old_domain[i];
+    }
 }
