@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
     build_reverse_matrix(n,ypl,yPx);
 
     print_reverse_matrixes(n,xPy,yPx);
-
+    
     //Initializes xlb and yub
     int *xlb = (int *)malloc(n*sizeof(int));
     int *yub = (int *)malloc(n*sizeof(int));
@@ -70,6 +70,11 @@ int main(int argc, char *argv[]) {
     while(1){
         stop=1;
         for(int i=0;i<n;i++){
+            if(getMin(n,x_domain,i)<0||getMax(n,y_domain,i)>=n){
+                printf("\n-------------------\nFound empty domain!\n-------------------\n");
+                print_domains(n,x_domain,y_domain);
+                return 0;
+            }
             if(getMin(n,x_domain,i)!=getMin(n,old_x_domain,i)){
                 deltaMin(i,n,x_domain,y_domain,xpl,ypl,xPy,yPx,xlb);
                 printf("deltaMin %i\n",i);

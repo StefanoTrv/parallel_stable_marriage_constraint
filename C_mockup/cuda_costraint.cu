@@ -9,8 +9,10 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
     int id = threadIdx.x + blockIdx.x * blockDim.x;
     //closes redundant threads
     if (id>= *length_men_stack + *length_women_stack){
+        printf("Returning %i\n",id);
         return;
     }
+    printf("Continuing %i\n",id);
     //gets person associated with thread and picks the correct data structures
     int person, other_person, other_index, temp;
     int is_man = id < *length_men_stack;
@@ -37,6 +39,8 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
         other_array_mod = array_mod_men;
         length_stack = length_women_stack;
     }
+
+    //controllare valore di temp
 
     //scans the domain, looking for removed values
     for(int i=old_min[person]; i<=old_max[person];i++){
@@ -188,9 +192,6 @@ __global__ void finalize_changes(int n, int* xpl, int* ypl, int* xPy, int* yPx, 
             n_bits = leftover_bits_in_word<span ? leftover_bits_in_word : span; //how many bits to put in this word
             printf("Mask value for woman %i and n_bits %i and offset %i: %i\n",id,n_bits,offset,~((ALL_ONES<< (sizeof (int)*8 - n_bits)) >> offset));
             atomicAnd(&y_domain[domain_index],~((ALL_ONES<< (sizeof (int)*8 - n_bits)) >> offset)); //atomically deletes the appropriate bits of the word
-            printf("test1 %i\n",(0<<17>>15));
-            printf("test2 %i\n",(1<<17>>15));
-            printf("test3 %i\n",(ALL_ONES));
             span-=n_bits; //marks some bits as added
             first_bit_index+=n_bits; //new index for the first bit that still hasn't been updated
         }else{//span>32, whole word can be written

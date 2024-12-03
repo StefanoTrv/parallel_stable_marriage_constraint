@@ -12,7 +12,7 @@
 #include "utils\pcg-c-basic-0.9\pcg_basic.c"
 
 void build_reverse_matrix(int,int*, int*);
-void serial_constraint(int, int*, int*, uint32_t*, uint32_t*);
+int serial_constraint(int, int*, int*, uint32_t*, uint32_t*);
 void cuda_constraint(int, int*, int*, uint32_t*, uint32_t*);
 void build_reverse_matrix(int,int*, int*);
 int* make_random_preference_matrix(int);
@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
             make_partial_domain(n,men_domain);
             make_partial_domain(n,women_domain);
         }
-        printf("Test number %i\n",i);
+        printf("\nTest number %i\n",i);
         print_preference_lists(n,men_pl,women_pl);
         print_domains(n,men_domain,women_domain);
 
@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
 
         //serial_constraint(n,men_pl,women_pl,men_domain,women_domain);
 
-        //cuda_constraint(n,men_pl,women_pl,men_domain_copy,women_domain_copy);
+        cuda_constraint(n,men_pl,women_pl,men_domain_copy,women_domain_copy);
     }
 
     free(men_pl);
@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
     SERIAL CONSTRAINT
 */
 
-void serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_domain) {
+int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_domain) {
 
     //Builds the reverse matrixes
     int *xPy, *yPx;
@@ -124,23 +124,28 @@ void serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *
     while(1){
         stop=1;
         for(int i=0;i<n;i++){
+            if(getMin(n,x_domain,i)<0||getMax(n,y_domain,i)>=n){
+                printf("\n-------------------\nFound empty domain!\n-------------------\n");
+                print_domains(n,x_domain,y_domain);
+                return -1;
+            }
             if(getMin(n,x_domain,i)!=getMin(n,old_x_domain,i)){
                 deltaMin(i,n,x_domain,y_domain,xpl,ypl,xPy,yPx,xlb);
                 printf("deltaMin %i\n",i);
-                print_domains(n,x_domain,y_domain);
+                //print_domains(n,x_domain,y_domain);
                 stop=0;
             }
             if(getMax(n,y_domain,i)!=getMax(n,old_y_domain,i)){
                 deltaMax(i,n,x_domain,y_domain,xpl,ypl,xPy,yPx,yub);
                 printf("deltaMax %i\n",i);
-                print_domains(n,x_domain,y_domain);
+                //print_domains(n,x_domain,y_domain);
                 stop=0;
             }
             for(int k=getMin(n,x_domain,i)+1;k<getMax(n,x_domain,i);k++){
                 if(getDomainBit(x_domain,i,k,n)!=getDomainBit(old_x_domain,i,k,n)){
                     removeValue(i,k,n,x_domain,y_domain,xpl,ypl,xPy,yPx);
                     printf("removeValue %i %i\n",i,k);
-                    print_domains(n,x_domain,y_domain);
+                    //print_domains(n,x_domain,y_domain);
                     stop=0;
                 }
             }
@@ -182,6 +187,8 @@ void serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *
     free(old_y_domain);
     free(prev_x_domain);
     free(prev_y_domain);
+
+    return 0;
 }
 
 /*
@@ -335,8 +342,14 @@ void cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_
 
     struct cudaDeviceProp props;
     cudaGetDeviceProperties(&props, device);
-    int n_blocks = props.multiProcessorCount;
-    int block_size = (n + n_blocks - 1) / n_blocks;
+    //int n_blocks = props.multiProcessorCount;
+    //int block_size = (n + n_blocks - 1) / n_blocks;
+
+    int n_blocks = 1;
+    int block_size = 32;
+
+    //stampare i valori di sopra
+    printf("Prima di lancio di f1: %i, %i, %i\n", n, n_blocks,block_size);
     
     make_domains_coherent<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain,d_array_mod_men, d_array_mod_women, d_array_min_mod_men, d_stack_mod_men, d_stack_mod_women, d_length_men_stack, d_length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women);
 
@@ -352,7 +365,7 @@ void cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_
 
     block_size = (*length_min_men_stack + n_blocks - 1) / n_blocks;
     printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
-    apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
+    //apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
     printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
     while(*new_length_min_men_stack!=0){
         //debug
@@ -371,7 +384,7 @@ void cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_
         //temp_p = new_stack_mod_min_men;
         //new_stack_mod_min_men = stack_mod_min_men;
         //stack_mod_min_men = temp_p;
-        apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
+        //apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
     }
 
     //debug
