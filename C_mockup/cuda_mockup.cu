@@ -6,6 +6,7 @@
 #include "cuda_costraint.cu"
 
 void build_reverse_matrix(int,int*, int*);
+void get_block_number_and_dimension(int, int, int*, int*);
 
 int main(int argc, char *argv[]) {
     // Get file path from command line arguments or uses a default value
@@ -184,8 +185,10 @@ int main(int argc, char *argv[]) {
 
     struct cudaDeviceProp props;
     cudaGetDeviceProperties(&props, device);
-    int n_blocks = props.multiProcessorCount;
-    int block_size = (n + n_blocks - 1) / n_blocks;
+    int n_SMP = props.multiProcessorCount;
+    int n_threads = *length_men_stack + *length_women_stack;
+    int n_blocks, block_size;
+    get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
     
     make_domains_coherent<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain,d_array_mod_men, d_array_mod_women, d_array_min_mod_men, d_stack_mod_men, d_stack_mod_women, d_length_men_stack, d_length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women);
 
@@ -199,7 +202,9 @@ int main(int argc, char *argv[]) {
     //empties array_min_mod_men
     HANDLE_ERROR(cudaMemset(d_array_min_mod_men,0,sizeof(int)*n));
 
-    block_size = (*length_min_men_stack + n_blocks - 1) / n_blocks;
+    n_threads = *length_min_men_stack;
+    get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
+    //block_size = (*length_min_men_stack + n_blocks - 1) / n_blocks;
     printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
     apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
     printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
@@ -220,6 +225,8 @@ int main(int argc, char *argv[]) {
         //temp_p = new_stack_mod_min_men;
         //new_stack_mod_min_men = stack_mod_min_men;
         //stack_mod_min_men = temp_p;
+        n_threads = *length_min_men_stack;
+        get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
         apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
     }
 
@@ -230,7 +237,9 @@ int main(int argc, char *argv[]) {
     print_domains(n,x_domain,y_domain);
     //debug
 
-    block_size = (n + n_blocks - 1) / n_blocks;
+    n_threads = n;
+    get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
+    //block_size = (n + n_blocks - 1) / n_blocks;
     finalize_changes<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain,d_array_mod_men, d_array_mod_women, d_array_min_mod_men, d_stack_mod_men, d_stack_mod_women, d_length_men_stack, d_length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
 
     //copies from device memory
@@ -314,5 +323,18 @@ void build_reverse_matrix(int n,int *zpl, int *zPz){
         for(int j=0;j<n;j++){
             zPz[i*n+zpl[i*n+j]]=j;
         }
+    }
+}
+
+/*
+    Computes the appropriate blocks size and number of blocks based on the number of threads required and the number of SMPs
+*/
+void get_block_number_and_dimension(int n_threads, int n_SMP, int *block_size, int *n_blocks){
+    if (n_threads/n_SMP >= 32){ //at least one warp per SMP
+        *n_blocks = n_SMP;
+        *block_size = (n_threads + *n_blocks - 1) / *n_blocks;
+    } else { //less than one warp per SMP
+        *block_size = 32;
+        *n_blocks = (n_threads + 31) / 32;
     }
 }
