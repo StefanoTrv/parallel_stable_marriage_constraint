@@ -472,7 +472,7 @@ void cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_
 }
 
 /*
-    Computes the appropriate blocks size and number of blocks based on the number of threads required and the number of SMPs
+    Computes the appropriate block size and number of blocks based on the number of threads required and the number of SMPs
 */
 void get_block_number_and_dimension(int n_threads, int n_SMP, int *block_size, int *n_blocks){
     if (n_threads/n_SMP >= 32){ //at least one warp per SMP
