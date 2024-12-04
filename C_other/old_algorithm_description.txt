@@ -1,0 +1,80 @@
+
+███████ ████████ ██████  ██    ██ ████████ ████████ ██    ██ ██████  ███████     ██████   █████  ████████ ██    
+██         ██    ██   ██ ██    ██    ██       ██    ██    ██ ██   ██ ██          ██   ██ ██   ██    ██    ██ ██ 
+███████    ██    ██████  ██    ██    ██       ██    ██    ██ ██████  █████       ██   ██ ███████    ██    ██    
+     ██    ██    ██   ██ ██    ██    ██       ██    ██    ██ ██   ██ ██          ██   ██ ██   ██    ██    ██ ██ 
+███████    ██    ██   ██  ██████     ██       ██     ██████  ██   ██ ███████     ██████  ██   ██    ██    ██    
+                                                                                                                
+Due vettori aggiuntivi array_mod_men e array_mod_women di "booleani", che contengono VERO per ogni uomo o donna il cui dominio è stato modificato.
+Un vettore aggiuntivo di "booleani" array_min_mod_men, che contiene VERO per ogni uomo il cui minimo nel dominio è stato modificato. (Nel caso simmetrico, ci sarà un vettore anche per le donne.)
+Due vettori aggiuntivi stack_mod_men e stack_mod_women di interi di dimensione n e due variabili length_men_stack e length_women_stack. I vettori contengono la lista, rispettivamente, degli uomini e delle donne il cui dominio è stato modificato; le due variabili associate indicano fino a quale elemento del vettore è stato riempito, mentre il resto è spazio libero.
+Un vettore aggiuntivo stack_mod_min_men di interi di dimensione n e la variabile length_min_men_stack. Il vettore contiene la lista degli uomini il cui minimo nel dominio è stato modificato; la variabile associata indica fino a quale elemento del vettore è stato riempito, mentre il resto è spazio libero. (Nel caso simmetrico, esistono strutture dati analoghe per le donne.)
+array_mod_men e array_mod_women sono inizializzati con tutti i valori a FALSO, a meno che non si ipotizzi che i domini ricevuti in input possano non essere coerenti. Se i domini di input sono coerenti, stack_mod_men e stack_mod_women non sono inizializzati, e length_men_stack e length_women_stack sono inizializzate a 0. Se i domini di input potessero essere non coerenti, i primi due vettori verrebbero inizializzati con tutti i valori a VERO, gli altri due conterrebbero tutti gli interi fino ad n e le variabili sarebbero inizializzate ad n.
+array_min_mod_men è inizializzato con tutti i valori a VERO. stack_mod_min_men è inizializzato con tutti gli interi fino ad n e length_min_men_stack è iniziazzato ad n. (Nel caso simmetrico, le strutture dati aggiuntive sono inizializzate allo stesso modo.)
+Si noti che si potrebbe pensare ad eliminare la necessità di inizializzare i vettori di interi utilizzando dei flag aggiuntivi, o in alternativa si potrebbe provare a delegare alla GPU la loro inizializzazione (essa non dovrebbe però essere così pesante da giustificare ciò).
+Tutte queste strutture dati sono allocate come memoria mapped, così da poterle modificare facilmente sia da host che da device (questa parte non è fondamentale).
+Quando il propagatore per questo vincolo deve essere chiamato, l'host imposta a FALSO gli elementi in array_mod_men e array_mod_women associati a variabili che non sono state modificate, mentre imposta a VERO gli elementi in array_mod_men e array_mod_women associati a variabili il cui dominio è stato modificato; nel secondo caso, inoltre, gli indici di quelle variabili (il numero dell'uomo o della donna) vengono inseriti all'inizio di stack_mod_men o stack_mod_women, e length_men_stack o length_women_stack viene incrementato opportunamente.
+Sempre prima della chiamata del propagatore, l'host imposta a FALSO gli elementi in array_min_mod_men associati a variabili il cui minimo del dominio non è stato modificato, mentre imposta a VERO gli elementi in array_min_mod_men associati a variabili il cui minimo nel dominio è stato modificato; nel secondo caso, inoltre, gli indici degli uomini vengono inseriti all'inizio di stack_mod_min_men e length_min_men_stack è incrementato opportunamente. (Nel caso simmetrico, viene fatto lo stesso con le strutture dati relative alle donne.)
+Quattro vettori aggiuntivi di interi, old_min_men, old_max_men, old_min_women e old_max_women, che contengo i valori minimi e massimi delle variabili degli uomini e delle donne subito dopo l'applicazione precedente del vincolo. I vettori relativi ai minimi sono inizializzati tutti a 0, mentre quelli relativi ai massimi a n-1. Questi vettori sono reversibili (trail), perché devono essere ripristinati con il backtracking; per questo motivo non possono essere salvati come memoria mapped ma devono essere ricaricati ogni volta sul device.
+
+si potrebbe fare che il blocco scrive la atomic di fun1 tutti insieme, con una sola chiamata (raggruppando le scritture in global, coordinandosi prima sulla shared)
+
+
+ █████  ██       ██████   ██████  ██████  ██ ████████ ███    ███  ██████     
+██   ██ ██      ██       ██    ██ ██   ██ ██    ██    ████  ████ ██    ██ ██ 
+███████ ██      ██   ███ ██    ██ ██████  ██    ██    ██ ████ ██ ██    ██    
+██   ██ ██      ██    ██ ██    ██ ██   ██ ██    ██    ██  ██  ██ ██    ██ ██ 
+██   ██ ███████  ██████   ██████  ██   ██ ██    ██    ██      ██  ██████     
+                                                                             
+L'host si occupa di lanciare le diverse fasi di applicazione del vincolo.
+Le fasi sono le seguenti:
+- redere coerenti i domini: eliminare dai domini degli uomini le donne i cui domini non li contengono più, e viceversa
+- applicazione vera e propria del vincolo
+- finalizzazione della modifica dei domini e ripristino delle strutture dati
+Le strutture dati passate ai kernel sono, oltre a quelle menzionate in precedenza e i domini: le due tabelle delle preferenze, le due tabelle delle preferenze invertite, i minimi e i massimi attuali di tutti i domini (diremo che sono salvati nei vettori min_men, max_men, min_women, max_women).
+
+Fun1: rendere coerenti i domini:
+Vengono lanciati un numero di thread pari a length_men_stack + length_women_stack. Ad ogni thread è associato un uomo od una donna presenti in stack_mod_men o stack_mod_women; il thread conosce la persona a cui è associato usando i vettori di interi, il proprio numero di blocco, numero di thread nel blocco e la lunghezza dei vettori.
+Una volta che il thread ha calcolato la persona p a cui è associato, usando i vettori old_[min|max]_{wo}men, scansiona tutti i valori nel dominio di p tra old_min(p) e old_max(p) (estremi inclusi) e, se valgono 0 (ovvero non sono presenti nel dominio), si assicura che sia impostato a 0 anche il valore di p nel dominio di questa nuova persona.
+Quando questa procedura modifica un dominio, effettua una lettura-scrittura atomica su array_mod_men o array_mod_women per vedere se il dominio era già stato segnalato come modificato; se non era stato segnato, lo segna e aggiorna stack_mod_men o stack_mod_women, con una lettura-incremento atomico di length_men_stack o length_women_stack.
+Inoltre, quando modifica il dominio di un uomo, legge old_min_men per vedere se il valore rimosso era il minimo e in caso affermativo modifica array_min_mod_men e, con una lettura-incremento atomica di length_min_men_stack, stack_mod_min_men. (Nel caso simmetrico, lo stesso viene fatto anche per le donne, con le apposite strutture dati.)
+Si noti che il vettore max_women potrebbe non contenere più i massimi reali alla fine di questa funzione, ma piuttosto dei valori >= ai massimi. Questo non è un problema, in quanto tutte le proposte che le donne potrebbero ricevere verrebbero accettate, sostituendo il vecchio valore del massimo con quello nuovo o con un nuovo massimo migliore (ovvero più piccolo). Aggiornare immediatamente questi valori non dovrebbe portare a miglioramenti nelle prestazioni, in quanto non incidono sul numero di operazioni eseguite da fun2 e sposterebbe solo del lavoro da f3 a f1. (Nel caso simmetrico, lo stesso ragionamento vale per il vettore dei massimi degli uomini.)
+
+Fun2: applicazione vera e propria del vincolo (per la versione simmetrica, si faccia la stessa cosa invertendo i ruoli di uomini e donne - ciò dovrebbe poter essere fatto in simultanea):
+Vengono lanciati length_min_men_stack thread, a ognuno dei quali è assegnato un uomo m presente in array_min_mod_men. (Infatti le modifiche interne ai domini non rompono le coppie migliori.)
+Partendo da min_men, scorre il dominio fino a trovare la prima donna nella lista di m che è ancora nel suo dominio, che chiamiamo w. min_men viene aggiornato con il valore relativo a w (se fatto in modo non atomico, l'algoritmo continua a funzionare ma il min potrebbe diminuire: bisogna valutare se è maggiore il costo dell'operazione atomica o delle eventuali iterazioni in più dovute alla modifica impropria di min). min_men viene confrontato con max_men per assicurarsi che il dominio di m non sia vuoto (il dominio è vuoto quando si supera max_men senza trovare una donna libera). In caso sia vuoto, min_men viene impostato a max_men+1 e il thread termina.
+Si noti che min_men non contiene sempre il minimo, bensì un valore <= al minimo. Per questo motivo viene aggiornato all'inizio di ogni iterazione di fun2. Non contiene il valore reale per evitare problemi di concorrenza.
+Viene effettuata una operazione atomica su max_women di w, in modo che ne legga il valore e lo sovrascriva solo se w preferisce m al suo massimo attuale (ovvero, m<max_women[w]). A seconda del valore ritornato dalla operazione atomica, ci si troverà in uno dei seguenti casi:
+- w preferisce il suo massimo a m: in questo caso, un uomo che w preferise ad m si è appena proposto a w. Viene rimossa w dal dominio di m, quindi si ricomincia questa funzione con lo stesso m.
+- il massimo di w è già m: in questo caso w ed m formano già una coppia stabile. Nessuna coppia viene rotta, dunque nessun uomo viene reso libero e quindi il thread termina.
+- w preferisce m al suo massimo: w "ha accettato" e il massimo attuale potrebbe essere stato liberato. Si definisca p := max_women[w]. Si procede come segue:
+	- Nel momento della lettura atomica, è stato impostato max_women[w]:=m, e la chiamata atomica evita di aumentare il massimo di w.
+	- per ogni successore di m nella lista di w fino a p incluso, si cancella w dal suo dominio. Si noti che, in caso questo valore fosse il minimo del rispettivo dominio, gli uomini diversi da p saranno già stati assegnati ad un altro thread, che si occuperà di aggiornare min_men. Infatti in un dominio coerente se w=min_men[n] allora m=max_women[w].
+	- si imposta m:=p e si torna all'inizio di questa sezione. Si noti che w potrebbe non essere il minimo di p e che quindi il thread potrebbe terminare alla prossima iterazione (a meno di altre modifiche).
+Questo processo continua fino a quando tutti i thread sono terminati. Si noti che i thread non comunicano fra loro quando trovano un dominio che è stato svuotato completamente, così da evitare gli overhead causati dalla sincronizzazione. Non c'è nessun tipo di sincronizzazione tra i thread, che procedono in modo indipendente (si vedano note a seguire).
+Dovrebbe essere possibile effettuare in contemporanea l'operazione simmetrica, ma la questione dovrebbe essere indagata più a fondo. Potrebbe essere necessario valutare con più attenzione i casi dei domini vuoti.
+
+Fun3: finalizzazione della modifica dei domini e ripristino delle strutture dati:
+Viene lanciato un thread per ogni donna, ovvero n thread. Quindi il thread imposta a 0 i bit del dominio della sua donna w compresi tra max_women[w] (escluso) e old_max_women[w] (incluso), operando il più possibile a livello di parola, così da ridurre il numero di operazioni neccessarie (quindi usando eventualmente una mask in AND per la prima parola e settando tutte le successive a 0, a meno che non includano il dominio della prossima persona).
+(Nel caso simmetrico, si fa la stessa cosa per i massimi degli uomini.)
+Quindi ogni thread aggiorna, per un i-esimo uomo e una i-esima donna, old_min_men, old_max_men, old_min_women e old_max_women con i nuovi massimi e minimi (si noti che nel caso asimmetrico i valori in max_men e min_women possono essere valori peggiori dei massimi e dei minimi reali, quindi è necessario scorrere i domini a partire da questi punti per assicurarsi di trovare i valori reali).
+Dopo la chiusura dei kernel, l'host mette a 0 le variabili relative alle lunghezze.
+
+Qui è stato presentato il caso in cui ad ogni thread viene assegnato inizialmente un solo uomo. Nel caso ne ricevesse di più (o anche più uomini e donne nel caso simmetrico), il thread, quando dovrebbe terminare, invece di chiudere passa alla prossima persona nella sua lista, fino a terminarle tutte. Questo potrebbe, in alcuni casi, rendere ancora più sbilanciata la distribuzione di lavoro fra i diversi thread (non è detto però che sia veramente un problema).
+
+Al termine, eventuali strutture dati che non sono mapped, come i domini e i vettori dei massimi e dei minimi, vengono copiati dall'host nella sua memoria.
+
+
+███    ██  ██████  ████████ ███████    
+████   ██ ██    ██    ██    ██      ██ 
+██ ██  ██ ██    ██    ██    █████      
+██  ██ ██ ██    ██    ██    ██      ██ 
+██   ████  ██████     ██    ███████    
+                                       
+Alcuni ragionamenti su cui si basa questo algoritmo.
+L'idea fondamentale è di non rappresentare esplicitamente le persone libere e le coppie, bensì di associare ad ogni thread una persona al momento libera e usare i massimi e i minimi del dominio come rappresentazione delle coppie, salvo possibili inconsistenze che devono essere ancora corrette. All'intero del codice parallelo, il concetto di dominio modificato di cui si era tenuto traccia si traduce in uomini (e donne nella versione simmetrica) potenzialmente liberi, che devono essere rivalutati.
+Una osservazione molto importante è che ogni proposta libera al più un uomo, dunque è possibile assegnare al thread l'uomo che è stato (forse) liberato, così da non aver bisogno di sincronizzarsi in attesa delle modifiche degli altri thread o ridistribuire gli uomini liberi fra altri thread. È possibile che, in questo modo, i blocchi si svuotino man mano di thread, così che rimangano in esecuzione diversi blocchi, ognuno con pochi thread; è difficile pensare di riuscire a ridistribuire in modo efficiente gli uomini liberi, così da compattarli negli stessi blocchi.
+Grazie alla lettura-scrittura atomica di max_women, un thread che lavora su una donna appena modificata da un altro thread o si accorge che c'è già stata una modifica e quindi che deve ricominciare con le nuove informazioni, oppure riesce a procedere l'esecuzione come se l'altro thread avesse già completato il suo lavoro. Questo ci assicura che la rimozione dei successori di m nella lista di w non liberi nessun uomo che non sia già assegnato ad un altro thread, con la possibile eccezione di p.
+Il minimo non viene aggiornato allo stesso modo del massimo, per evitare problemi di concorrenza durante la ricerca di un nuovo minimo. Questo problema non è presente per quanto riguarda i massimi.
+Le modifiche dei valori sulle bitmap vanno effettuate usando operazioni binarie atomiche, per evitare che operazioni contemporanee sulla stessa locazione di memoria (anche su bit diversi) entrino in conflitto (una infatti potrebbe sovrascrivere l'altra).
+Una delle criticità principali di questo algoritmo è l'uso abbondante di operazioni atomiche. È difficile pensare di riuscire ad eliminarle senza aggiungere pesanti sincronizzazioni.
