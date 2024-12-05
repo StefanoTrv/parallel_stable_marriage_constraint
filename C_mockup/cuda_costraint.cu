@@ -40,8 +40,6 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
         length_stack = length_women_stack;
     }
 
-    //controllare valore di temp
-
     //scans the domain, looking for removed values
     for(int i=old_min[person]; i<=old_max[person];i++){
         if(getDomainBit2(person_domain,person,i,n)==0){//this bit is 0
@@ -56,6 +54,7 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
                 if(!is_man && old_min_men[other_person]==other_index){//updates array_min_mod_men if other_person is a man and the min was just removed
                     array_min_mod_men[other_person] = 1;
                     temp = atomicAdd(length_min_men_stack,1);
+                    printf("Temp for thread %i is %i\n",id,temp);
                     stack_mod_min_men[temp]=other_person;
                 }
             }

@@ -139,7 +139,7 @@ __global__ void finalize_changes(int n, int* xpl, int* ypl, int* xPy, int* yPx, 
     int domain_index, n_bits, leftover_bits_in_word, offset;
     
     while(span>0){
-        if(first_bit_index << (sizeof (int) - 5) != 0 || span < 32){ //first_bit_index%32!=0, the last part of a word OR the first part of a word (beginning and/or end of area of interest)
+        if(first_bit_index << (sizeof (int)*8 - 5) != 0 || span < 32){ //first_bit_index%32!=0, the last part of a word OR the first part of a word (beginning and/or end of area of interest)
             printf("Deleting part of word for woman %i\n",id);
             domain_index = first_bit_index>>5; //first_bit_index/32
             offset = first_bit_index%32; //offset of the first bit in the word

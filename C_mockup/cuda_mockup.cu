@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
 	HANDLE_ERROR(cudaHostAlloc((void**)&new_length_min_men_stack, sizeof (int), cudaHostAllocMapped));
     *length_men_stack = n;
     *length_women_stack = n;
-    *length_min_men_stack = n;
+    *length_min_men_stack = 0; //for f1 we pretend that it's empty, then we fill it before f2
     *new_length_min_men_stack = 0;
     for (int i=0;i<n;i++){
         array_mod_men[i]=1;
@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
         array_min_mod_men[i]=1;
         stack_mod_men[i]=i;
         stack_mod_women[i]=i;
-        stack_mod_min_men[i]=i;
+        //stack_mod_min_men[i]=i;
     }
     int *d_array_mod_men, *d_array_mod_women, *d_array_min_mod_men, *d_stack_mod_men, *d_stack_mod_women, *d_stack_mod_min_men, *d_new_stack_mod_min_men, *d_length_men_stack, *d_length_women_stack, *d_length_min_men_stack, *d_new_length_min_men_stack;
     HANDLE_ERROR(cudaHostGetDevicePointer(&d_array_mod_men, array_mod_men, 0));
@@ -201,6 +201,12 @@ int main(int argc, char *argv[]) {
 
     //empties array_min_mod_men
     HANDLE_ERROR(cudaMemset(d_array_min_mod_men,0,sizeof(int)*n));
+
+    //completely fills min_men_stack
+    *length_min_men_stack = n;
+    for (int i=0;i<n;i++){
+        stack_mod_min_men[i]=i;
+    }
 
     n_threads = *length_min_men_stack;
     get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
