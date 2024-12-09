@@ -13,13 +13,14 @@
 
 void build_reverse_matrix(int,int*, int*);
 int serial_constraint(int, int*, int*, uint32_t*, uint32_t*);
-void cuda_constraint(int, int*, int*, uint32_t*, uint32_t*);
+int cuda_constraint(int, int*, int*, uint32_t*, uint32_t*);
 void build_reverse_matrix(int,int*, int*);
 int* make_random_preference_matrix(int);
 void make_full_domain(int,uint32_t*);
 void make_partial_domain(int,uint32_t*);
 void clone_domain(int, uint32_t*,uint32_t*);
 void get_block_number_and_dimension(int, int, int*, int*);
+int compare_domains(int, uint32_t*, uint32_t*);
 
 /*
     Executes the tests.
@@ -29,6 +30,9 @@ void get_block_number_and_dimension(int, int, int*, int*);
 int main(int argc, char *argv[]) {
     //get parameters from command line arguments
     int n, compl_tests, incompl_tests;
+    int empty_domains_founds = 0;
+    int errors = 0;
+    int serial_status, cuda_status;
     if (argc == 4) {
         n = strtol(argv[1],NULL,10);
         compl_tests = strtol(argv[2],NULL,10);
@@ -39,16 +43,16 @@ int main(int argc, char *argv[]) {
     }
     int total_tests = compl_tests + incompl_tests;
 
-    printf("\n%i %i %i\n",n,compl_tests,incompl_tests);
-
     //Initializes (seeds) global rng (see documentation at https://www.pcg-random.org/using-pcg-c-basic.html#pcg32-srandom-r-rngptr-initstate-initseq)
     pcg32_srandom(42, 42);
 
     int *men_pl, *women_pl;
     uint32_t *men_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
     uint32_t *women_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
-    uint32_t *men_domain_copy = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
-    uint32_t *women_domain_copy = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
+    uint32_t *men_domain_parallel = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
+    uint32_t *women_domain_parallel = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
+    uint32_t *men_domain_orig = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
+    uint32_t *women_domain_orig = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
 
     for(int i=0; i<total_tests; i++){
         men_pl = make_random_preference_matrix(n);
@@ -60,27 +64,49 @@ int main(int argc, char *argv[]) {
             make_partial_domain(n,men_domain);
             make_partial_domain(n,women_domain);
         }
-        printf("\nTest number %i\n",i);
-        print_preference_lists(n,men_pl,women_pl);
-        print_domains(n,men_domain,women_domain);
 
-        clone_domain(n,men_domain,men_domain_copy);
-        clone_domain(n,women_domain,women_domain_copy);
-        print_domains(n,men_domain_copy,women_domain_copy);
+        clone_domain(n,men_domain,men_domain_parallel);
+        clone_domain(n,women_domain,women_domain_parallel);
+        clone_domain(n,men_domain,men_domain_orig);
+        clone_domain(n,women_domain,women_domain_orig);
 
-        //serial_constraint(n,men_pl,women_pl,men_domain,women_domain);
+        serial_status = serial_constraint(n,men_pl,women_pl,men_domain,women_domain);
+        cuda_status = cuda_constraint(n,men_pl,women_pl,men_domain_parallel,women_domain_parallel);
 
-        cuda_constraint(n,men_pl,women_pl,men_domain_copy,women_domain_copy);
+        if (serial_status == -1 && serial_status == cuda_status){ //correct
+            empty_domains_founds++;
+        } else if(serial_status == cuda_status){ //must check
+            if(!compare_domains(n,men_domain,men_domain_parallel) || !compare_domains(n,women_domain,women_domain_parallel)){//not equal
+                errors++;
+                printf("--------------------------------\n  Found error in test number %i (different domains) \n--------------------------------\n",i);
+                print_preference_lists(n,men_pl,women_pl);
+                print_domains(n,men_domain_orig,women_domain_orig);
+                printf("Resulting domains for serial constraint:\n");
+                print_domains(n,men_domain,women_domain);
+                printf("Resulting domains for parallel constraint:\n");
+                print_domains(n,men_domain_parallel,women_domain_parallel);
+            }
+        }else{ //surely an error
+            errors++;
+            printf("--------------------------------\n  Found error in test number %i (empty and non empty domains) \n--------------------------------\n",i);
+            print_preference_lists(n,men_pl,women_pl);
+            print_domains(n,men_domain_orig,women_domain_orig);
+            printf("Resulting domains for serial constraint:\n");
+            print_domains(n,men_domain,women_domain);
+            printf("Resulting domains for parallel constraint:\n");
+            print_domains(n,men_domain_parallel,women_domain_parallel);
+        }
     }
-
     free(men_pl);
     free(women_pl);
     free(men_domain);
     free(women_domain);
-    free(men_domain_copy);
-    free(women_domain_copy);
+    free(men_domain_parallel);
+    free(women_domain_parallel);
+    free(men_domain_orig);
+    free(women_domain_orig);
 
-    printf("\nDone");
+    printf("\nTesting complete\n%i errors were found out of %i tests\n%i empty domains were correctly identified",errors,total_tests,empty_domains_founds);
     return 0;
 }
 
@@ -91,6 +117,25 @@ int main(int argc, char *argv[]) {
 
 int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_domain) {
 
+    //Returns if it finds an empty domain
+    int emptyM, emptyW;
+    for(int i=0;i<n;i++){
+        emptyM = true;
+        emptyW = true;
+        for(int j=0;j<n;j++){
+            if(getDomainBit(x_domain,i,j,n)){
+                emptyM=false;
+            }
+            if(getDomainBit(y_domain,i,j,n)){
+                emptyW=false;
+            }
+        }
+        if(emptyM || emptyW){
+            //printf("Found empty domain as input: returning.\n");
+            return -1;
+        }
+    }
+
     //Builds the reverse matrixes
     int *xPy, *yPx;
     xPy = (int *)malloc(n * n * sizeof(int));
@@ -98,7 +143,7 @@ int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y
     build_reverse_matrix(n,xpl,xPy);
     build_reverse_matrix(n,ypl,yPx);
 
-    print_reverse_matrixes(n,xPy,yPx);
+    //print_reverse_matrixes(n,xPy,yPx);
 
     //Initializes xlb and yub
     int *xlb = (int *)malloc(n*sizeof(int));
@@ -113,39 +158,44 @@ int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y
     uint32_t *old_y_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
     uint32_t *prev_x_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
     uint32_t *prev_y_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
+    //printf("Before initialization of vectors.\n");
     for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
         old_x_domain[i]=x_domain[i];
         prev_x_domain[i]=x_domain[i];
         old_y_domain[i]=y_domain[i];
         prev_y_domain[i]=y_domain[i];
     }
+    //printf("After initialization of vectors.\n");
 
     init(n,x_domain,y_domain,xpl,ypl,xPy,yPx,xlb);
+    //printf("After init.\n");
+
     int stop;
     while(1){
         stop=1;
         for(int i=0;i<n;i++){
+            //printf("%iith iteration\n",i);
             if(getMin(n,x_domain,i)<0||getMax(n,y_domain,i)>=n){
-                printf("\n-------------------\nFound empty domain!\n-------------------\n");
-                print_domains(n,x_domain,y_domain);
+                //printf("\n-------------------\nFound empty domain!\n-------------------\n");
+                //print_domains(n,x_domain,y_domain);
                 return -1;
             }
             if(getMin(n,x_domain,i)!=getMin(n,old_x_domain,i)){
                 deltaMin(i,n,x_domain,y_domain,xpl,ypl,xPy,yPx,xlb);
-                printf("deltaMin %i\n",i);
+                //printf("deltaMin %i\n",i);
                 //print_domains(n,x_domain,y_domain);
                 stop=0;
             }
             if(getMax(n,y_domain,i)!=getMax(n,old_y_domain,i)){
                 deltaMax(i,n,x_domain,y_domain,xpl,ypl,xPy,yPx,yub);
-                printf("deltaMax %i\n",i);
+                //printf("deltaMax %i\n",i);
                 //print_domains(n,x_domain,y_domain);
                 stop=0;
             }
             for(int k=getMin(n,x_domain,i)+1;k<getMax(n,x_domain,i);k++){
                 if(getDomainBit(x_domain,i,k,n)!=getDomainBit(old_x_domain,i,k,n)){
                     removeValue(i,k,n,x_domain,y_domain,xpl,ypl,xPy,yPx);
-                    printf("removeValue %i %i\n",i,k);
+                    //printf("removeValue %i %i\n",i,k);
                     //print_domains(n,x_domain,y_domain);
                     stop=0;
                 }
@@ -156,7 +206,7 @@ int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y
             break;
         }
 
-        printf("I have not stopped!\n");
+        //printf("I have not stopped!\n");
 
         //updates old domains
         for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
@@ -166,18 +216,6 @@ int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y
             prev_y_domain[i]=y_domain[i];
         }
     }
-
-    print_domains(n,x_domain,y_domain);
-
-    printf("Men best:\n");
-    for(int i = 0;i<n;i++){
-        printf("%i",xpl[i*n+getMin(n,x_domain,i)]);
-    }
-    printf("\n(in the index domain):\t");
-    for(int i = 0;i<n;i++){
-        printf("%i",getMin(n,x_domain,i));
-    }
-    
     
     //Frees memory and closes
     free(xPy);
@@ -196,7 +234,7 @@ int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y
     CUDA CONSTRAINT
 */
 
-void cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_domain) {
+int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_domain) {
     int temp, *temp_p;
 
     //Builds the reverse matrixes
@@ -206,7 +244,7 @@ void cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_
     build_reverse_matrix(n,xpl,xPy);
     build_reverse_matrix(n,ypl,yPx);
 
-    print_reverse_matrixes(n,xPy,yPx);
+    //print_reverse_matrixes(n,xPy,yPx);
 
     //prepares other data and copies it into device memory
     int *d_xpl, *d_ypl, *d_xPy, *d_yPx;
@@ -308,11 +346,11 @@ void cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_
         }else{
             temp=n-1;
             while(getDomainBit(x_domain,i,temp,n)==0){//doesn't need to check for temp>=0 since we know it's not empty
-                printf("Found empty for man %i value %i",i,temp);
+                //printf("Found empty for man %i value %i",i,temp);
                 temp--;
             }
             max_men[i]=temp;
-            printf("max men[%i]=%i\n",i,max_men[i]);
+            //printf("max men[%i]=%i\n",i,max_men[i]);
         }
         while(temp<n&&getDomainBit(y_domain,i,temp,n)==0){
             temp++;
@@ -349,15 +387,16 @@ void cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_
     get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
 
     //stampare i valori di sopra (debug)
-    printf("Prima di lancio di f1: %i, %i, %i\n", n_threads, n_blocks,block_size);
+    //printf("Prima di lancio di f1: %i, %i, %i\n", n_threads, n_blocks,block_size);
     
     make_domains_coherent<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain,d_array_mod_men, d_array_mod_women, d_array_min_mod_men, d_stack_mod_men, d_stack_mod_women, d_length_men_stack, d_length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women);
+    cudaDeviceSynchronize();
 
     //debug
-    printf("After f1:\n");
-    HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
-    HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
-    print_domains(n,x_domain,y_domain);
+    //printf("After f1:\n");
+    //HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+    //HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+    //print_domains(n,x_domain,y_domain);
     //debug
 
     //empties array_min_mod_men
@@ -372,15 +411,16 @@ void cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_
     n_threads = *length_min_men_stack;
     get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
     //block_size = (*length_min_men_stack + n_blocks - 1) / n_blocks;
-    printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
+    //printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
     apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
-    printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
+    cudaDeviceSynchronize();
+    //printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
     while(*new_length_min_men_stack!=0){
         //debug
-        printf("After f1:\n");
-        HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
-        HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
-        print_domains(n,x_domain,y_domain);
+        //printf("After f1:\n");
+        //HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+        //HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+        //print_domains(n,x_domain,y_domain);
         //debug
 
         HANDLE_ERROR(cudaMemset(d_array_min_mod_men,0,sizeof(int)*n));
@@ -395,13 +435,14 @@ void cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_
         n_threads = *length_min_men_stack;
         get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
         apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
+        cudaDeviceSynchronize();
     }
 
     //debug
-    printf("After f2:\n");
-    HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
-    HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
-    print_domains(n,x_domain,y_domain);
+    //printf("After f2:\n");
+    //HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+    //HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+    //print_domains(n,x_domain,y_domain);
     //debug
 
     n_threads = n;
@@ -446,26 +487,6 @@ void cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_
     HANDLE_ERROR(cudaFree(d_old_max_men));
     HANDLE_ERROR(cudaFree(d_old_min_women));
     HANDLE_ERROR(cudaFree(d_old_max_women));
-	
-
-    print_domains(n,x_domain,y_domain);
-
-    printf("Men best:\n");
-    for(int i = 0;i<n;i++){
-        if(getMax(n,y_domain,i)<0){
-            printf("EMPTYDOM_for_woman_'%i'",i);
-            break;
-        }
-        if(getMin(n,x_domain,i)<n){
-            printf("%i",xpl[i*n+getMin(n,x_domain,i)]);
-        } else{
-            printf("EMPTYDOM_for_man_'%i'",i);
-        }
-    }
-    printf("\n(in the index domain):\t");
-    for(int i = 0;i<n;i++){
-        printf("%i",getMin(n,x_domain,i));
-    }
     
     
     //Frees memory and closes
@@ -475,6 +496,21 @@ void cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_
     free(old_min_women);
     free(old_max_men);
     free(old_max_women);
+
+    //checks if there's an empty domain
+    int empty;
+    for(int i=0;i<n;i++){
+        empty = true;
+        for(int j=0;j<n;j++){
+            if(getDomainBit(x_domain,i,j,n)){
+                empty=false;
+            }
+        }
+        if(empty){
+            return -1;
+        }
+    }
+    return 0;
 }
 
 /*
@@ -545,7 +581,7 @@ void make_full_domain(int n, uint32_t *domain){
 */
 void make_partial_domain(int n, uint32_t *domain){
     for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
-        domain[i] = pcg32_random();
+        domain[i] = pcg32_random() | pcg32_random() | pcg32_random();
     }
 }
 
@@ -556,4 +592,18 @@ void clone_domain(int n, uint32_t *old_domain, uint32_t *new_domain){
     for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
         new_domain[i] = old_domain[i];
     }
+}
+
+/*
+    Compares two domains
+    For performance reasons, it includes in the comparison the ending part of the allocated memory that doesn't contain any info.
+    The correctness of this function depends on how the domains were created.
+*/
+int compare_domains(int n, uint32_t *d1, uint32_t *d2){
+    for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
+        if(d1[i]!=d2[i]){
+            return 0;
+        }
+    }
+    return 1;
 }

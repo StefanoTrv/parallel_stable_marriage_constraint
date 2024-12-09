@@ -191,7 +191,8 @@ int main(int argc, char *argv[]) {
     get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
     
     make_domains_coherent<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain,d_array_mod_men, d_array_mod_women, d_array_min_mod_men, d_stack_mod_men, d_stack_mod_women, d_length_men_stack, d_length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women);
-
+    cudaDeviceSynchronize();
+    
     //debug
     printf("After f1:\n");
     HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
@@ -211,12 +212,13 @@ int main(int argc, char *argv[]) {
     n_threads = *length_min_men_stack;
     get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
     //block_size = (*length_min_men_stack + n_blocks - 1) / n_blocks;
-    printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
+    printf("new_length_min_men_stack value: %i\n",*new_length_min_men_stack);
     apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
-    printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
+    cudaDeviceSynchronize();
+    printf("new_length_min_men_stack value: %i\n",*new_length_min_men_stack);
     while(*new_length_min_men_stack!=0){
         //debug
-        printf("After f1:\n");
+        printf("Before new execution of f2 (new_length_min_men_stack = %i):\n",*new_length_min_men_stack);
         HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
         HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
         print_domains(n,x_domain,y_domain);
@@ -234,6 +236,7 @@ int main(int argc, char *argv[]) {
         n_threads = *length_min_men_stack;
         get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
         apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
+        cudaDeviceSynchronize();
     }
 
     //debug

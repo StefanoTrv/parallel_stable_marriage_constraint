@@ -5,7 +5,6 @@
      ██    ██    ██   ██ ██    ██    ██       ██    ██    ██ ██   ██ ██          ██   ██ ██   ██    ██    ██ ██ 
 ███████    ██    ██   ██  ██████     ██       ██     ██████  ██   ██ ███████     ██████  ██   ██    ██    ██    
                                                                                                                 
-//AGGIORNARE INFO SU INIZIALIZZAZIONE DI STACK_MOD_MIN_MEN E SUA LENGTH PER RIFLETTERE NUOVE INIZIALIZZAZIONI PRIMA DI F1 ED F2
 Due vettori aggiuntivi array_mod_men e array_mod_women di "booleani", che contengono VERO per ogni uomo o donna il cui dominio è stato modificato.
 Un vettore aggiuntivo di "booleani" array_min_mod_men, che contiene VERO per ogni uomo il cui minimo nel dominio è stato modificato. (Nel caso simmetrico, ci sarà un vettore anche per le donne.)
 Due vettori aggiuntivi stack_mod_men e stack_mod_women di interi di dimensione n e due variabili length_men_stack e length_women_stack. I vettori contengono la lista, rispettivamente, degli uomini e delle donne il cui dominio è stato modificato; le due variabili associate indicano fino a quale elemento del vettore è stato riempito, mentre il resto è spazio libero.

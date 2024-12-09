@@ -9,10 +9,10 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
     int id = threadIdx.x + blockIdx.x * blockDim.x;
     //closes redundant threads
     if (id>= *length_men_stack + *length_women_stack){
-        printf("Returning %i\n",id);
+        //printf("Returning %i\n",id);
         return;
     }
-    printf("Continuing %i\n",id);
+    //printf("Continuing %i\n",id);
     //gets person associated with thread and picks the correct data structures
     int person, other_person, other_index, temp;
     int is_man = id < *length_men_stack;
@@ -54,7 +54,7 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
                 if(!is_man && old_min_men[other_person]==other_index){//updates array_min_mod_men if other_person is a man and the min was just removed
                     array_min_mod_men[other_person] = 1;
                     temp = atomicAdd(length_min_men_stack,1);
-                    printf("Temp for thread %i is %i\n",id,temp);
+                    //printf("Temp for thread %i is %i\n",id,temp);
                     stack_mod_min_men[temp]=other_person;
                 }
             }
@@ -70,6 +70,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
     if (id>= *length_min_men_stack){
         return;
     }
+    //printf("max_women[%i]=%i\n",id,max_women[id]);
 
     //finds man assigned to this thread
     int m = stack_mod_min_men[id];
@@ -79,6 +80,8 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
     int p_val, m_val;
     int succ_val, succ;
     int m_ith, w_val;
+    m_ith = - 9; //DEBUGGING
+    w_val = - 9; //DEBUGGING
 
     //the thread cycles as long as it has a man assigned to it
     while(1){
@@ -89,7 +92,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
             printf("EMPTY DOMAIN\n");
             return;
         }else if(getDomainBit2(x_domain,m,w_index,n)){//value in domain
-            printf("new w_index for man %i (thread %i): %i\n", m, id, w_index);
+            //printf("new w_index for man %i (thread %i): %i\n", m, id, w_index);
             min_men[m]=w_index;//necessary for checking later if this man needs to be updated
             w = xpl[m*n+w_index];
 
@@ -97,15 +100,15 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
 
             //atomic read-and-write of max_women[w]
             p_val = atomicMin(max_women+w, m_val);
-            printf("New max for woman %i is %i (thread %i)\n",w,(p_val<m_val) ? p_val : m_val,id);
-            printf("man %i is proposing to woman %i (with index %i) (thread %i)\n", m, w, p_val, id);
-            printf("p_val for man %i (thread %i): %i\n", m, id, p_val);
-            printf("m_val for man %i (thread %i): %i\n", m, id, m_val);
+            //printf("New max for woman %i is %i (thread %i)\n",w,(p_val<m_val) ? p_val : m_val,id);
+            //printf("man %i is proposing to woman %i (with index %i) (thread %i)\n", m, w, p_val, id);
+            //printf("p_val for man %i (thread %i): %i\n", m, id, p_val);
+            //printf("m_val for man %i (thread %i): %i\n", m, id, m_val);
 
             if(m_val > p_val){//w prefers p to m
                 printf("Deleting woman %i (with index %i) from domain of man %i (thread %i), because the woman declined.\n",w,w_index,m,id);
                 old_min_men[m]=w_index+1;
-                printf("New old_min_men for man %i is %i\n",m,w_index+1);
+                //printf("New old_min_men for man %i is %i\n",m,w_index+1);
                 printf("Caso1 for man %i (thread %i)\n", m, id);
                 //continue;//continues with the same m
             } else if(p_val==m_val){//w is already with m
@@ -126,12 +129,13 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
             }
         }else{//value not in domain
             old_min_men[m]=w_index+1;
-            printf("New old_min_men for man %i is %i\n",m,w_index+1);
+            //printf("New old_min_men for man %i is %i\n",m,w_index+1);
             w = xpl[m*n+w_index];
             m_val = yPx[w*n+m];
+            printf("Woman %i (index %i) is not in the domain of man %i (thread %i)\n",w,w_index,m,id);
             //atomic read-and-write of max_women[w]
             p_val = atomicMin(max_women+w, m_val-1);
-            printf("New max for woman %i is %i (thread %i)\n",w,((p_val<m_val-1) ? p_val : m_val-1),id);
+            //printf("New max for woman %i is %i (thread %i)\n",w,((p_val<m_val-1) ? p_val : m_val-1),id);
             for(int i = m_val; i<=p_val; i++){//remove that woman from all the men that were removed from her domain //i=m_val+1? xk sn coerenti
                 if(getDomainBit2(y_domain,w,i,n)){//value wasn't already removed
                     m_ith=  ypl[w*n+i];
@@ -142,13 +146,17 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
             }
             if(p_val>m_val-1){//checks if the min of the last man has changed
                 printf("Thread %i checking if man %i needs to be updated later.\n",id,m_ith);
-                //m_ith=  ypl[w*n+p_val];
-                //w_val = xPy[m_ith*n+w];
+                m_ith=  ypl[w*n+p_val]; //necessary if a domain is empty
+                w_val = xPy[m_ith*n+w]; //necessary if a domain is empty
+                //printf("Value of p_val for thread %i is %i.\n",id,p_val);
+                //printf("Value of m_ith for thread %i is %i.\n",id,m_ith);
+                //printf("Value of w_val for thread %i is %i.\n",id,w_val);
+
                 if(min_men[m_ith]==w_val){//min was changed and probably won't be updated
                     if(!atomicExch(&(array_min_mod_men[m_ith]),1)){ //atomic exchange to avoid duplicates (which could overflow the stack)
-                        new_stack_mod_min_men[atomicAdd(new_length_min_men_stack,1)]; //adds man to new stack
-                        printf("Thread %i increased new_length_min_men_stack to %i for man %i\n",id,*new_length_min_men_stack,m_ith);
+                        new_stack_mod_min_men[atomicAdd(new_length_min_men_stack,1)]=m_ith; //adds man to new stack
                         printf("Thread %i found that man %i needs to be updated later.\n",id,m_ith);
+                        printf("Thread %i increased new_length_min_men_stack to %i for man %i\n",id,*new_length_min_men_stack,m_ith);
                     }else{
                         printf("Thread %i found that man %i is already marked to be updated later.\n",id,m_ith);
 
@@ -173,7 +181,7 @@ __global__ void finalize_changes(int n, int* xpl, int* ypl, int* xPy, int* yPx, 
         return;
     }
 
-    printf("max_women[%i] = %i\n",id,max_women[id]);
+    //printf("max_women[%i] = %i\n",id,max_women[id]);
 
     //finalizes women's domains
     int domain_offset = n * id;
@@ -184,17 +192,17 @@ __global__ void finalize_changes(int n, int* xpl, int* ypl, int* xPy, int* yPx, 
     
     while(span>0){
         if(first_bit_index << (sizeof (int)*8 - 5) != 0 || span < 32){ //first_bit_index%32!=0, the last part of a word OR the first part of a word (beginning and/or end of area of interest)
-            printf("Deleting part of word for woman %i\n",id);
+            //printf("Deleting part of word for woman %i\n",id);
             domain_index = first_bit_index>>5; //first_bit_index/32
             offset = first_bit_index%32; //offset of the first bit in the word
             leftover_bits_in_word = 32-offset; //the remaining bits from first_bit_index to the end of the word
             n_bits = leftover_bits_in_word<span ? leftover_bits_in_word : span; //how many bits to put in this word
-            printf("Mask value for woman %i and n_bits %i and offset %i: %i\n",id,n_bits,offset,~((ALL_ONES<< (sizeof (int)*8 - n_bits)) >> offset));
+            //printf("Mask value for woman %i and n_bits %i and offset %i: %i\n",id,n_bits,offset,~((ALL_ONES<< (sizeof (int)*8 - n_bits)) >> offset));
             atomicAnd(&y_domain[domain_index],~((ALL_ONES<< (sizeof (int)*8 - n_bits)) >> offset)); //atomically deletes the appropriate bits of the word
             span-=n_bits; //marks some bits as added
             first_bit_index+=n_bits; //new index for the first bit that still hasn't been updated
         }else{//span>32, whole word can be written
-            printf("Deleting whole word for woman %i\n",id);
+            //printf("Deleting whole word for woman %i\n",id);
             domain_index = first_bit_index>>5; //first_bit_index/32
             y_domain[domain_index]=0; //deletes whole word
             span-=32; //marks some bits as added
