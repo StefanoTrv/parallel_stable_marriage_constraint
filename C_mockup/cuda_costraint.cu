@@ -80,16 +80,14 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
     int p_val, m_val;
     int succ_val, succ;
     int m_ith, w_val;
-    m_ith = - 9; //DEBUGGING
-    w_val = - 9; //DEBUGGING
 
     //the thread cycles as long as it has a man assigned to it
     while(1){
         //finds the first woman remaining in m's domain/list
         w_index = old_min_men[m];//min_men[m];
-        printf("w_index for man %i (thread %i): %i\n", m, id, w_index);
+        //printf("w_index for man %i (thread %i): %i\n", m, id, w_index);
         if(w_index>max_men[m]){//empty domain
-            printf("EMPTY DOMAIN\n");
+            //printf("EMPTY DOMAIN\n");
             return;
         }else if(getDomainBit2(x_domain,m,w_index,n)){//value in domain
             //printf("new w_index for man %i (thread %i): %i\n", m, id, w_index);
@@ -106,13 +104,13 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
             //printf("m_val for man %i (thread %i): %i\n", m, id, m_val);
 
             if(m_val > p_val){//w prefers p to m
-                printf("Deleting woman %i (with index %i) from domain of man %i (thread %i), because the woman declined.\n",w,w_index,m,id);
+                //printf("Deleting woman %i (with index %i) from domain of man %i (thread %i), because the woman declined.\n",w,w_index,m,id);
                 old_min_men[m]=w_index+1;
                 //printf("New old_min_men for man %i is %i\n",m,w_index+1);
-                printf("Caso1 for man %i (thread %i)\n", m, id);
+                //printf("Caso1 for man %i (thread %i)\n", m, id);
                 //continue;//continues with the same m
             } else if(p_val==m_val){//w is already with m
-                printf("Caso2 for man %i (thread %i): RETURNING\n", m, id);
+                //printf("Caso2 for man %i (thread %i): RETURNING\n", m, id);
 
                 return;//the thread has no free man to find a woman for
             } else {//m_val<p, that is w prefers m to p
@@ -120,10 +118,10 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
                 while(succ_val<=p_val){
                     succ = ypl[w*n+succ_val];
                     delDomainBit(x_domain,succ,xPy[succ*n+w],n);
-                    printf("Deleting woman %i (with index %i) from domain of man %i (thread %i), because the man is a successor of %i.\n",w,xPy[succ*n+w],succ,id,m);
+                    //printf("Deleting woman %i (with index %i) from domain of man %i (thread %i), because the man is a successor of %i.\n",w,xPy[succ*n+w],succ,id,m);
                     succ_val++;
                 }
-                printf("Caso3 for man %i (thread %i). New man: %i\n", m, id, ypl[w*n+p_val]);
+                //printf("Caso3 for man %i (thread %i). New man: %i\n", m, id, ypl[w*n+p_val]);
                 m = ypl[w*n+p_val];
                 //continue;//continues with m:=p
             }
@@ -132,7 +130,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
             //printf("New old_min_men for man %i is %i\n",m,w_index+1);
             w = xpl[m*n+w_index];
             m_val = yPx[w*n+m];
-            printf("Woman %i (index %i) is not in the domain of man %i (thread %i)\n",w,w_index,m,id);
+            //printf("Woman %i (index %i) is not in the domain of man %i (thread %i)\n",w,w_index,m,id);
             //atomic read-and-write of max_women[w]
             p_val = atomicMin(max_women+w, m_val-1);
             //printf("New max for woman %i is %i (thread %i)\n",w,((p_val<m_val-1) ? p_val : m_val-1),id);
@@ -141,11 +139,11 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
                     m_ith=  ypl[w*n+i];
                     w_val = xPy[m_ith*n+w];
                     delDomainBit(x_domain,m_ith,w_val,n);
-                    printf("Deleted woman %i (value %i) from domain of man %i, because of 0 value in man %i (thread %i).\n",w,w_val,m_ith,m_val,id);
+                    //printf("Deleted woman %i (value %i) from domain of man %i, because of 0 value in man %i (thread %i).\n",w,w_val,m_ith,m_val,id);
                 }
             }
             if(p_val>m_val-1){//checks if the min of the last man has changed
-                printf("Thread %i checking if man %i needs to be updated later.\n",id,m_ith);
+                //printf("Thread %i checking if man %i needs to be updated later.\n",id,m_ith);
                 m_ith=  ypl[w*n+p_val]; //necessary if a domain is empty
                 w_val = xPy[m_ith*n+w]; //necessary if a domain is empty
                 //printf("Value of p_val for thread %i is %i.\n",id,p_val);
@@ -155,16 +153,16 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
                 if(min_men[m_ith]==w_val){//min was changed and probably won't be updated
                     if(!atomicExch(&(array_min_mod_men[m_ith]),1)){ //atomic exchange to avoid duplicates (which could overflow the stack)
                         new_stack_mod_min_men[atomicAdd(new_length_min_men_stack,1)]=m_ith; //adds man to new stack
-                        printf("Thread %i found that man %i needs to be updated later.\n",id,m_ith);
-                        printf("Thread %i increased new_length_min_men_stack to %i for man %i\n",id,*new_length_min_men_stack,m_ith);
-                    }else{
+                        //printf("Thread %i found that man %i needs to be updated later.\n",id,m_ith);
+                        //printf("Thread %i increased new_length_min_men_stack to %i for man %i\n",id,*new_length_min_men_stack,m_ith);
+                    }/*else{
                         printf("Thread %i found that man %i is already marked to be updated later.\n",id,m_ith);
 
-                    }
-                }else{
+                    }*/
+                }/*else{
                     printf("Thread %i found that man %i wont' need to be updated later.\n",id,m_ith);
 
-                }
+                }*/
 
             }
         }

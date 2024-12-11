@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include "utils/io.c"
 #include "utils/printer.c"
-#include "stable_marriage_constraint.c"
+#include "serial_constraint.c"
 //#include "domain_functions.c"
 #include "utils\error_handler.cu"
 #include "cuda_costraint.cu"
@@ -32,6 +32,7 @@ int main(int argc, char *argv[]) {
     int n, compl_tests, incompl_tests;
     int empty_domains_founds = 0;
     int errors = 0;
+    int empty_notempty_errors = 0;
     int serial_status, cuda_status;
     if (argc == 4) {
         n = strtol(argv[1],NULL,10);
@@ -88,7 +89,13 @@ int main(int argc, char *argv[]) {
             }
         }else{ //surely an error
             errors++;
+            empty_notempty_errors++;
             printf("--------------------------------\n  Found error in test number %i (empty and non empty domains) \n--------------------------------\n",i);
+            if(serial_status == -1){
+                printf("Domain for serial constraint was found to be empty.\n");
+            } else {
+                printf("Domain for parallel constraint was found to be empty.\n");
+            }
             print_preference_lists(n,men_pl,women_pl);
             print_domains(n,men_domain_orig,women_domain_orig);
             printf("Resulting domains for serial constraint:\n");
@@ -106,7 +113,7 @@ int main(int argc, char *argv[]) {
     free(men_domain_orig);
     free(women_domain_orig);
 
-    printf("\nTesting complete\n%i errors were found out of %i tests\n%i empty domains were correctly identified",errors,total_tests,empty_domains_founds);
+    printf("\nTesting complete\n%i errors were found out of %i tests (of which, %i where one domain was empty and the other was not)\n%i empty domains were correctly identified",errors,total_tests,empty_notempty_errors,empty_domains_founds);
     return 0;
 }
 
@@ -160,10 +167,14 @@ int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y
     uint32_t *prev_y_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
     //printf("Before initialization of vectors.\n");
     for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
-        old_x_domain[i]=x_domain[i];
-        prev_x_domain[i]=x_domain[i];
-        old_y_domain[i]=y_domain[i];
-        prev_y_domain[i]=y_domain[i];
+        //old_x_domain[i]=x_domain[i];
+        //prev_x_domain[i]=x_domain[i];
+        //old_y_domain[i]=y_domain[i];
+        //prev_y_domain[i]=y_domain[i];
+        old_x_domain[i]=4294967295;
+        prev_x_domain[i]=4294967295;
+        old_y_domain[i]=4294967295;
+        prev_y_domain[i]=4294967295;
     }
     //printf("After initialization of vectors.\n");
 
@@ -192,11 +203,18 @@ int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y
                 //print_domains(n,x_domain,y_domain);
                 stop=0;
             }
-            for(int k=getMin(n,x_domain,i)+1;k<getMax(n,x_domain,i);k++){
+            for(int k=getMin(n,x_domain,i)+1;k<=getMax(n,old_x_domain,i);k++){
                 if(getDomainBit(x_domain,i,k,n)!=getDomainBit(old_x_domain,i,k,n)){
                     removeValue(i,k,n,x_domain,y_domain,xpl,ypl,xPy,yPx);
                     //printf("removeValue %i %i\n",i,k);
                     //print_domains(n,x_domain,y_domain);
+                    stop=0;
+                }
+            }
+            //Applies remove value on the women too (this is missing from the original paper)
+            for(int k=getMin(n,old_y_domain,i);k<getMax(n,y_domain,i);k++){
+                if(getDomainBit(y_domain,i,k,n)!=getDomainBit(old_y_domain,i,k,n)){
+                    removeValue(i,k,n,y_domain,x_domain,ypl,xpl,yPx,xPy);
                     stop=0;
                 }
             }
@@ -581,7 +599,7 @@ void make_full_domain(int n, uint32_t *domain){
 */
 void make_partial_domain(int n, uint32_t *domain){
     for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
-        domain[i] = pcg32_random() | pcg32_random() | pcg32_random();
+        domain[i] = pcg32_random() | pcg32_random() | pcg32_random() | pcg32_random();
     }
 }
 

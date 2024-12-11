@@ -35,7 +35,7 @@ int getMin(int n, uint32_t* domain, int index){
             return i;
         }
     }
-    printf("getMin Error");
+    //printf("getMin Error");
     return -1;
 }
 
@@ -45,7 +45,7 @@ int getMax(int n, uint32_t* domain, int index){
             return i;
         }
     }
-    printf("getMax Error");
+    //printf("getMax Error");
     return -1;
 }
 
@@ -64,10 +64,8 @@ void setMax(int n, uint32_t* domain, int index, int a){
         printf("setMax error");
     }
     int old_max = getMax(n,domain,index);
-    if(a<old_max){
-        for(int i=a+1; i<=old_max;i++){
-            setDomainBit(domain,index,i,n,0);
-        }
+    for(int i=a+1; i<=old_max;i++){
+        setDomainBit(domain,index,i,n,0);
     }
 }
 
