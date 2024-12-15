@@ -74,6 +74,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
 
     //finds man assigned to this thread
     int m = stack_mod_min_men[id];
+    //printf("m for thread %i is: %i\n",id,m);
 
     //the variables named *_val represent the value of some person in the domain of another specific person of the opposite sex
     int w_index, w;
@@ -91,7 +92,9 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
             return;
         }else if(getDomainBit2(x_domain,m,w_index,n)){//value in domain
             //printf("new w_index for man %i (thread %i): %i\n", m, id, w_index);
-            min_men[m]=w_index;//necessary for checking later if this man needs to be updated
+            min_men[m]=w_index;//necessary for checking later if this man needs to be updated  (atomicMax could be used, but it would very rarely make a difference)
+            //atomicMax(min_men+m,w_index); //necessary for checking later if this man needs to be updated
+            //atomicExch(min_men+m,w_index);
             w = xpl[m*n+w_index];
 
             m_val = yPx[w*n+m];
@@ -105,7 +108,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
 
             if(m_val > p_val){//w prefers p to m
                 //printf("Deleting woman %i (with index %i) from domain of man %i (thread %i), because the woman declined.\n",w,w_index,m,id);
-                old_min_men[m]=w_index+1;
+                old_min_men[m]=w_index+1; //atomicMax could be used, but it would very rarely make a difference
                 //printf("New old_min_men for man %i is %i\n",m,w_index+1);
                 //printf("Caso1 for man %i (thread %i)\n", m, id);
                 //continue;//continues with the same m
@@ -126,7 +129,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
                 //continue;//continues with m:=p
             }
         }else{//value not in domain
-            old_min_men[m]=w_index+1;
+            old_min_men[m]=w_index+1; //atomicMax could be used, but it would very rarely make a difference
             //printf("New old_min_men for man %i is %i\n",m,w_index+1);
             w = xpl[m*n+w_index];
             m_val = yPx[w*n+m];
@@ -142,7 +145,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
                     //printf("Deleted woman %i (value %i) from domain of man %i, because of 0 value in man %i (thread %i).\n",w,w_val,m_ith,m_val,id);
                 }
             }
-            if(p_val>m_val-1){//checks if the min of the last man has changed
+            if(p_val>m_val-1){//checks if the min of the last man has changed (the condition checks if the max of the woman changed)
                 //printf("Thread %i checking if man %i needs to be updated later.\n",id,m_ith);
                 m_ith=  ypl[w*n+p_val]; //necessary if a domain is empty
                 w_val = xPy[m_ith*n+w]; //necessary if a domain is empty
@@ -150,19 +153,12 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
                 //printf("Value of m_ith for thread %i is %i.\n",id,m_ith);
                 //printf("Value of w_val for thread %i is %i.\n",id,w_val);
 
-                if(min_men[m_ith]==w_val){//min was changed and probably won't be updated
-                    if(!atomicExch(&(array_min_mod_men[m_ith]),1)){ //atomic exchange to avoid duplicates (which could overflow the stack)
-                        new_stack_mod_min_men[atomicAdd(new_length_min_men_stack,1)]=m_ith; //adds man to new stack
-                        //printf("Thread %i found that man %i needs to be updated later.\n",id,m_ith);
-                        //printf("Thread %i increased new_length_min_men_stack to %i for man %i\n",id,*new_length_min_men_stack,m_ith);
-                    }/*else{
-                        printf("Thread %i found that man %i is already marked to be updated later.\n",id,m_ith);
-
-                    }*/
-                }/*else{
-                    printf("Thread %i found that man %i wont' need to be updated later.\n",id,m_ith);
-
-                }*/
+                //marks the man as needing to be updated
+                if(!atomicExch(&(array_min_mod_men[m_ith]),1)){ //atomic exchange to avoid duplicates (which could overflow the stack)
+                    new_stack_mod_min_men[atomicAdd(new_length_min_men_stack,1)]=m_ith; //adds man to new stack
+                    //printf("Thread %i found that man %i needs to be updated later.\n",id,m_ith);
+                    //printf("Thread %i increased new_length_min_men_stack to %i for man %i\n",id,*new_length_min_men_stack,m_ith);
+                }
 
             }
         }
@@ -209,7 +205,13 @@ __global__ void finalize_changes(int n, int* xpl, int* ypl, int* xPy, int* yPx, 
     }
 
     //updates old_min_men, old_max_men, old_min_women, old_max_women
-    //min_men[id]=old_min_men[id];//because min_men is not kept updated (it actually should already be up to date)
+    /*if(old_min_men[id]!=min_men[id]){
+        printf("Found a difference!\n");
+        if(old_min_men[id]>min_men[id]){
+            printf("WTF");
+        }
+    }*/
+    //old_min_men[id]=min_men[id]; //it should be already up to date, but unusual execution orders may make it outdated
     old_max_women[id]=max_women[id];
 
     int new_m=max_men[id];//old_max_men

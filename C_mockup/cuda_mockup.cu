@@ -211,6 +211,14 @@ int main(int argc, char *argv[]) {
 
     n_threads = *length_min_men_stack;
     get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
+    
+    //DEBUG
+    //n_blocks = n_threads;
+    //block_size =1;
+    //n_blocks = 1;
+    //block_size =33;
+    //DEBUG
+
     //block_size = (*length_min_men_stack + n_blocks - 1) / n_blocks;
     printf("new_length_min_men_stack value: %i\n",*new_length_min_men_stack);
     apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
@@ -288,6 +296,10 @@ int main(int argc, char *argv[]) {
     HANDLE_ERROR(cudaFree(d_old_max_men));
     HANDLE_ERROR(cudaFree(d_old_min_women));
     HANDLE_ERROR(cudaFree(d_old_max_women));
+    HANDLE_ERROR(cudaFree(d_min_men));
+    HANDLE_ERROR(cudaFree(d_max_men));
+    HANDLE_ERROR(cudaFree(d_min_women));
+    HANDLE_ERROR(cudaFree(d_max_women));
 	
 
     print_domains(n,x_domain,y_domain);
@@ -298,15 +310,19 @@ int main(int argc, char *argv[]) {
             printf("EMPTYDOM_for_woman_'%i'",i);
             return 0;
         }
-        if(getMin(n,x_domain,i)<n){
-            printf("%i",xpl[i*n+getMin(n,x_domain,i)]);
+        if(getMin(n,x_domain,i)>n-1){
+            printf("%i, ",xpl[i*n+getMin(n,x_domain,i)]);
         } else{
             printf("EMPTYDOM_for_man_'%i'",i);
         }
     }
     printf("\n(in the index domain):\t");
     for(int i = 0;i<n;i++){
-        printf("%i",getMin(n,x_domain,i));
+        printf("%i, ",getMin(n,x_domain,i));
+    }
+    printf("\n(old_min_men):\t");
+    for(int i = 0;i<n;i++){
+        printf("%i, ",old_min_men[i]);
     }
     
     
@@ -321,6 +337,11 @@ int main(int argc, char *argv[]) {
     free(old_min_women);
     free(old_max_men);
     free(old_max_women);
+    free(min_men);
+    free(max_men);
+    free(min_women);
+    free(max_women);
+
 
     printf("\nClosing...");
 

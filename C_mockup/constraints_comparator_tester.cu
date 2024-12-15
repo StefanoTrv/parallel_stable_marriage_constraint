@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
 
         serial_status = serial_constraint(n,men_pl,women_pl,men_domain,women_domain);
         cuda_status = cuda_constraint(n,men_pl,women_pl,men_domain_parallel,women_domain_parallel);
-
+        
         if (serial_status == -1 && serial_status == cuda_status){ //correct
             empty_domains_founds++;
         } else if(serial_status == cuda_status){ //must check
@@ -167,10 +167,6 @@ int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y
     uint32_t *prev_y_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
     //printf("Before initialization of vectors.\n");
     for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
-        //old_x_domain[i]=x_domain[i];
-        //prev_x_domain[i]=x_domain[i];
-        //old_y_domain[i]=y_domain[i];
-        //prev_y_domain[i]=y_domain[i];
         old_x_domain[i]=4294967295;
         prev_x_domain[i]=4294967295;
         old_y_domain[i]=4294967295;
@@ -403,7 +399,7 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
     int n_threads = *length_men_stack + *length_women_stack;
     int n_blocks, block_size;
     get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
-
+    
     //stampare i valori di sopra (debug)
     //printf("Prima di lancio di f1: %i, %i, %i\n", n_threads, n_blocks,block_size);
     
@@ -428,7 +424,14 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
 
     n_threads = *length_min_men_stack;
     get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
-    //block_size = (*length_min_men_stack + n_blocks - 1) / n_blocks;
+    
+    //DEBUG
+    //n_blocks = n_threads;
+    //block_size =1;
+    //DEBUG
+    
+    //printf("Prima di lancio di f2: %i, %i, %i\n", n_threads, n_blocks,block_size);
+
     //printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
     apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
     cudaDeviceSynchronize();
@@ -505,6 +508,10 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
     HANDLE_ERROR(cudaFree(d_old_max_men));
     HANDLE_ERROR(cudaFree(d_old_min_women));
     HANDLE_ERROR(cudaFree(d_old_max_women));
+    HANDLE_ERROR(cudaFree(d_min_men));
+    HANDLE_ERROR(cudaFree(d_max_men));
+    HANDLE_ERROR(cudaFree(d_min_women));
+    HANDLE_ERROR(cudaFree(d_max_women));
     
     
     //Frees memory and closes
@@ -514,17 +521,25 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
     free(old_min_women);
     free(old_max_men);
     free(old_max_women);
+    free(min_men);
+    free(max_men);
+    free(min_women);
+    free(max_women);
 
     //checks if there's an empty domain
-    int empty;
+    int emptyX, emptyY;
     for(int i=0;i<n;i++){
-        empty = true;
+        emptyX = true;
+        emptyY = true;
         for(int j=0;j<n;j++){
             if(getDomainBit(x_domain,i,j,n)){
-                empty=false;
+                emptyX=false;
+            }
+            if(getDomainBit(y_domain,i,j,n)){
+                emptyY=false;
             }
         }
-        if(empty){
+        if(emptyX || emptyY){
             return -1;
         }
     }
@@ -599,7 +614,7 @@ void make_full_domain(int n, uint32_t *domain){
 */
 void make_partial_domain(int n, uint32_t *domain){
     for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
-        domain[i] = pcg32_random() | pcg32_random() | pcg32_random() | pcg32_random();
+        domain[i] = pcg32_random() | pcg32_random() | pcg32_random() | pcg32_random() | pcg32_random() | pcg32_random() | pcg32_random() | pcg32_random() | pcg32_random() | pcg32_random();
     }
 }
 

@@ -59,10 +59,6 @@ int main(int argc, char *argv[]) {
     uint32_t *prev_x_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
     uint32_t *prev_y_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
     for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
-        //old_x_domain[i]=x_domain[i];
-        //prev_x_domain[i]=x_domain[i];
-        //old_y_domain[i]=y_domain[i];
-        //prev_y_domain[i]=y_domain[i];
         old_x_domain[i]=4294967295;
         prev_x_domain[i]=4294967295;
         old_y_domain[i]=4294967295;
@@ -74,50 +70,50 @@ int main(int argc, char *argv[]) {
     print_domains(n,x_domain,y_domain);
     int stop;
     while(1){
-        printf("Starting new cycle.\n");
-        printf("Real domain:\n");
-        print_domains(n,x_domain,y_domain);
-        printf("Old domain:\n");
-        print_domains(n,old_x_domain,old_y_domain);
+        //printf("Starting new cycle.\n");
+        //printf("Real domain:\n");
+        //print_domains(n,x_domain,y_domain);
+        //printf("Old domain:\n");
+        //print_domains(n,old_x_domain,old_y_domain);
 
         stop=1;
         for(int i=0;i<n;i++){
-            printf("Operating for i=%i\n",i);
+            //printf("Operating for i=%i\n",i);
             if(getMin(n,x_domain,i)<0||getMax(n,y_domain,i)>=n){
                 printf("\n-------------------\nFound empty domain!\n-------------------\n");
                 print_domains(n,x_domain,y_domain);
                 return 0;
             }
             if(getMin(n,x_domain,i)!=getMin(n,old_x_domain,i)){
-                printf("Il minimo dell'uomo %i e' stato modificato: era %i ed ora e' %i.\n",i,getMin(n,old_x_domain,i),getMin(n,x_domain,i));
+                //printf("Il minimo dell'uomo %i e' stato modificato: era %i ed ora e' %i.\n",i,getMin(n,old_x_domain,i),getMin(n,x_domain,i));
                 deltaMin(i,n,x_domain,y_domain,xpl,ypl,xPy,yPx,xlb);
-                printf("\tdeltaMin %i\n",i);
-                print_domains(n,x_domain,y_domain);
+                //printf("\tdeltaMin %i\n",i);
+                //print_domains(n,x_domain,y_domain);
                 stop=0;
             }
             if(getMax(n,y_domain,i)!=getMax(n,old_y_domain,i)){
-                printf("Il massimo della donna %i e' stato modificato: era %i ed ora e' %i.\n",i,getMax(n,old_y_domain,i),getMax(n,y_domain,i));
+                //printf("Il massimo della donna %i e' stato modificato: era %i ed ora e' %i.\n",i,getMax(n,old_y_domain,i),getMax(n,y_domain,i));
                 deltaMax(i,n,x_domain,y_domain,xpl,ypl,xPy,yPx,yub);
-                printf("\tdeltaMax %i\n",i);
-                print_domains(n,x_domain,y_domain);
+                //printf("\tdeltaMax %i\n",i);
+                //print_domains(n,x_domain,y_domain);
                 stop=0;
             }
             for(int k=getMin(n,x_domain,i)+1;k<getMax(n,old_x_domain,i);k++){
                 if(getDomainBit(x_domain,i,k,n)!=getDomainBit(old_x_domain,i,k,n)){
-                    printf("Il valore interno %i dell'uomo %i e' stato modificato.\n",k,i);
+                    //printf("Il valore interno %i dell'uomo %i e' stato modificato.\n",k,i);
                     removeValue(i,k,n,x_domain,y_domain,xpl,ypl,xPy,yPx);
-                    printf("\tremoveValue %i %i\n",i,k);
-                    print_domains(n,x_domain,y_domain);
+                    //printf("\tremoveValue %i %i\n",i,k);
+                    //print_domains(n,x_domain,y_domain);
                     stop=0;
                 }
             }
             //Applies remove value on the women too (this is missing from the original paper)
             for(int k=getMin(n,old_y_domain,i);k<getMax(n,y_domain,i);k++){
                 if(getDomainBit(y_domain,i,k,n)!=getDomainBit(old_y_domain,i,k,n)){
-                    printf("Il valore interno %i della donna %i e' stato modificato.\n",k,i);
+                    //printf("Il valore interno %i della donna %i e' stato modificato.\n",k,i);
                     removeValue(i,k,n,y_domain,x_domain,ypl,xpl,yPx,xPy);
-                    printf("\tremoveValue %i %i\n",i,k);
-                    print_domains(n,x_domain,y_domain);
+                    //printf("\tremoveValue %i %i\n",i,k);
+                    //print_domains(n,x_domain,y_domain);
                     stop=0;
                 }
             }
@@ -127,7 +123,7 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        printf("I have not stopped!\n");
+        //printf("I have not stopped!\n");
 
         //updates old domains
         for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
