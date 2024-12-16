@@ -182,7 +182,7 @@ int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y
         stop=1;
         for(int i=0;i<n;i++){
             //printf("%iith iteration\n",i);
-            if(getMin(n,x_domain,i)<0||getMax(n,y_domain,i)>=n){
+            if(getMin(n,x_domain,i)>=n||getMax(n,y_domain,i)<0){
                 //printf("\n-------------------\nFound empty domain!\n-------------------\n");
                 //print_domains(n,x_domain,y_domain);
                 return -1;
@@ -240,7 +240,7 @@ int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y
     free(old_y_domain);
     free(prev_x_domain);
     free(prev_y_domain);
-
+    
     return 0;
 }
 

@@ -36,7 +36,7 @@ int getMin(int n, uint32_t* domain, int index){
         }
     }
     //printf("getMin Error");
-    return -1;
+    return n;
 }
 
 int getMax(int n, uint32_t* domain, int index){

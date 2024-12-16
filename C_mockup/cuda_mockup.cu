@@ -311,9 +311,9 @@ int main(int argc, char *argv[]) {
             return 0;
         }
         if(getMin(n,x_domain,i)>n-1){
-            printf("%i, ",xpl[i*n+getMin(n,x_domain,i)]);
-        } else{
             printf("EMPTYDOM_for_man_'%i'",i);
+        } else{
+            printf("%i, ",xpl[i*n+getMin(n,x_domain,i)]);
         }
     }
     printf("\n(in the index domain):\t");
