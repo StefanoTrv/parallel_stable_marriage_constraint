@@ -56,6 +56,7 @@ int main(int argc, char *argv[]) {
     uint32_t *women_domain_orig = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
 
     for(int i=0; i<total_tests; i++){
+        //printf("Beginning test %i\n",i);
         men_pl = make_random_preference_matrix(n);
         women_pl = make_random_preference_matrix(n);
         if(i<compl_tests){
@@ -468,7 +469,6 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
 
     n_threads = n;
     get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
-    //block_size = (n + n_blocks - 1) / n_blocks;
     finalize_changes<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain,d_array_mod_men, d_array_mod_women, d_array_min_mod_men, d_stack_mod_men, d_stack_mod_women, d_length_men_stack, d_length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_min_men, d_max_men, d_min_women, d_max_women);
 
     //copies from device memory
@@ -483,6 +483,9 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
     *length_men_stack = 0;
     *length_women_stack = 0;
     *length_min_men_stack = 0;
+
+    //DEBUGG
+    HANDLE_ERROR(cudaMemcpy(min_men, d_min_men, sizeof(int) * n, cudaMemcpyDeviceToHost));
 
     //frees device memory
     HANDLE_ERROR(cudaFree(d_xpl));
@@ -512,6 +515,34 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
     HANDLE_ERROR(cudaFree(d_max_men));
     HANDLE_ERROR(cudaFree(d_min_women));
     HANDLE_ERROR(cudaFree(d_max_women));
+
+    //debug
+    for(int i=0;i<n;i++){
+        if(getMin(n,x_domain,i)<=n&&getMin(n,x_domain,i)!=old_min_men[i]){
+            printf("Mistake in man %i! Min is %i and old_min is %i!\n",i,getMin(n,x_domain,i),old_min_men[i]);
+        }
+    }
+    for(int i=0;i<n;i++){
+        if(getMin(n,x_domain,i)<=n&&getMin(n,x_domain,i)!=min_men[i]){
+            printf("Mistake in man %i! Min is %i and min is %i!\n",i,getMin(n,x_domain,i),min_men[i]);
+        }
+    }
+    for(int i=0;i<n;i++){
+        if(old_min_men[i]!=min_men[i]){
+            printf("Found a difference in man %i! old_min_men is %i and min_men is %i!\n",i,old_min_men[i],min_men[i]);
+        }
+    }
+    /*for(int i=0;i<n;i++){
+        if(old_min_men[i]>=n){
+            printf("old_min_men suggests man %i is empty\n",i);
+        }
+    }
+    for(int i=0;i<n;i++){
+        if(old_min_men[i]>=n){
+            printf("min_men suggests man %i is empty\n",i);
+        }
+    }*/
+    //debug
     
     
     //Frees memory and closes
@@ -540,6 +571,7 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
             }
         }
         if(emptyX || emptyY){
+            printf("Empty.\n");
             return -1;
         }
     }

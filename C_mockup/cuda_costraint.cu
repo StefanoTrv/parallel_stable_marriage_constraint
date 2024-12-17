@@ -88,13 +88,13 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
         w_index = old_min_men[m];//min_men[m];
         //printf("w_index for man %i (thread %i): %i\n", m, id, w_index);
         if(w_index>max_men[m]){//empty domain
+            old_min_men[m]=n;
             //printf("EMPTY DOMAIN\n");
             return;
         }else if(getDomainBit2(x_domain,m,w_index,n)){//value in domain
             //printf("new w_index for man %i (thread %i): %i\n", m, id, w_index);
             min_men[m]=w_index;//necessary for checking later if this man needs to be updated  (atomicMax could be used, but it would very rarely make a difference)
             //atomicMax(min_men+m,w_index); //necessary for checking later if this man needs to be updated
-            //atomicExch(min_men+m,w_index);
             w = xpl[m*n+w_index];
 
             m_val = yPx[w*n+m];
@@ -109,6 +109,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
             if(m_val > p_val){//w prefers p to m
                 //printf("Deleting woman %i (with index %i) from domain of man %i (thread %i), because the woman declined.\n",w,w_index,m,id);
                 old_min_men[m]=w_index+1; //atomicMax could be used, but it would very rarely make a difference
+                //atomicMax(old_min_men+m,w_index+1);
                 //printf("New old_min_men for man %i is %i\n",m,w_index+1);
                 //printf("Caso1 for man %i (thread %i)\n", m, id);
                 //continue;//continues with the same m
@@ -130,6 +131,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
             }
         }else{//value not in domain
             old_min_men[m]=w_index+1; //atomicMax could be used, but it would very rarely make a difference
+            //atomicMax(old_min_men+m,w_index+1);
             //printf("New old_min_men for man %i is %i\n",m,w_index+1);
             w = xpl[m*n+w_index];
             m_val = yPx[w*n+m];
@@ -167,7 +169,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
 }
 
 //f3: finalizes the changes in the domains and computes the new old_maxes and old_mins
-// Modifies y_domain, old_min_men, old_max_women, old_max_men and old_min_women
+// Modifies y_domain, min_men, old_max_women, old_max_men and old_min_women
 __global__ void finalize_changes(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_mod_men, int* array_mod_women, int* array_min_mod_men, int* stack_mod_men, int* stack_mod_women, int* length_men_stack, int* length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* min_men, int* max_men, int* min_women, int* max_women){
     int id = threadIdx.x + blockIdx.x * blockDim.x;
     //closes redundant threads
@@ -204,14 +206,8 @@ __global__ void finalize_changes(int n, int* xpl, int* ypl, int* xPy, int* yPx, 
         }
     }
 
-    //updates old_min_men, old_max_men, old_min_women, old_max_women
-    /*if(old_min_men[id]!=min_men[id]){
-        printf("Found a difference!\n");
-        if(old_min_men[id]>min_men[id]){
-            printf("WTF");
-        }
-    }*/
-    //old_min_men[id]=min_men[id]; //it should be already up to date, but unusual execution orders may make it outdated
+    //updates min_men, old_max_men, old_min_women, old_max_women
+    min_men[id]=old_min_men[id]; //may need to be updated if domain is empty
     old_max_women[id]=max_women[id];
 
     int new_m=max_men[id];//old_max_men
