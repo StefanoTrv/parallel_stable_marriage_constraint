@@ -156,6 +156,7 @@ int main(int argc, char *argv[]) {
             max_men[i]=temp;
             printf("max men[%i]=%i\n",i,max_men[i]);
         }
+        temp=0;
         while(temp<n&&getDomainBit(y_domain,i,temp,n)==0){
             temp++;
         }

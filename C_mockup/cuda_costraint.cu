@@ -93,8 +93,6 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
             return;
         }else if(getDomainBit2(x_domain,m,w_index,n)){//value in domain
             //printf("new w_index for man %i (thread %i): %i\n", m, id, w_index);
-            min_men[m]=w_index;//necessary for checking later if this man needs to be updated  (atomicMax could be used, but it would very rarely make a difference)
-            //atomicMax(min_men+m,w_index); //necessary for checking later if this man needs to be updated
             w = xpl[m*n+w_index];
 
             m_val = yPx[w*n+m];
@@ -169,7 +167,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
 }
 
 //f3: finalizes the changes in the domains and computes the new old_maxes and old_mins
-// Modifies y_domain, min_men, old_max_women, old_max_men and old_min_women
+// Modifies y_domain, old_max_women, old_max_men and old_min_women
 __global__ void finalize_changes(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_mod_men, int* array_mod_women, int* array_min_mod_men, int* stack_mod_men, int* stack_mod_women, int* length_men_stack, int* length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* min_men, int* max_men, int* min_women, int* max_women){
     int id = threadIdx.x + blockIdx.x * blockDim.x;
     //closes redundant threads
@@ -206,12 +204,11 @@ __global__ void finalize_changes(int n, int* xpl, int* ypl, int* xPy, int* yPx, 
         }
     }
 
-    //updates min_men, old_max_men, old_min_women, old_max_women
-    min_men[id]=old_min_men[id]; //may need to be updated if domain is empty
+    //updates old_max_men, old_min_women, old_max_women
     old_max_women[id]=max_women[id];
 
     int new_m=max_men[id];//old_max_men
-    if(min_men[id]<=max_men[id]){
+    if(old_min_men[id]<=max_men[id]){
         while(new_m>=0 && getDomainBit2(x_domain,id,new_m,n)==0){
             new_m--;
         }

@@ -367,6 +367,7 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
             max_men[i]=temp;
             //printf("max men[%i]=%i\n",i,max_men[i]);
         }
+        temp=0;
         while(temp<n&&getDomainBit(y_domain,i,temp,n)==0){
             temp++;
         }
@@ -484,9 +485,6 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
     *length_women_stack = 0;
     *length_min_men_stack = 0;
 
-    //DEBUGG
-    HANDLE_ERROR(cudaMemcpy(min_men, d_min_men, sizeof(int) * n, cudaMemcpyDeviceToHost));
-
     //frees device memory
     HANDLE_ERROR(cudaFree(d_xpl));
 	HANDLE_ERROR(cudaFree(d_ypl));
@@ -516,30 +514,28 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
     HANDLE_ERROR(cudaFree(d_min_women));
     HANDLE_ERROR(cudaFree(d_max_women));
 
-    //debug
+    
     for(int i=0;i<n;i++){
         if(getMin(n,x_domain,i)<=n&&getMin(n,x_domain,i)!=old_min_men[i]){
             printf("Mistake in man %i! Min is %i and old_min is %i!\n",i,getMin(n,x_domain,i),old_min_men[i]);
         }
     }
-    for(int i=0;i<n;i++){
-        if(getMin(n,x_domain,i)<=n&&getMin(n,x_domain,i)!=min_men[i]){
-            printf("Mistake in man %i! Min is %i and min is %i!\n",i,getMin(n,x_domain,i),min_men[i]);
-        }
-    }
-    for(int i=0;i<n;i++){
-        if(old_min_men[i]!=min_men[i]){
-            printf("Found a difference in man %i! old_min_men is %i and min_men is %i!\n",i,old_min_men[i],min_men[i]);
-        }
-    }
+    //debug
     /*for(int i=0;i<n;i++){
-        if(old_min_men[i]>=n){
-            printf("old_min_men suggests man %i is empty\n",i);
+        if(getMax(n,x_domain,i)>0&&getMax(n,x_domain,i)!=old_max_men[i]){
+            printf("Mistake in man %i! Max is %i and old_max is %i!\n",i,getMax(n,x_domain,i),old_max_men[i]);
+        }
+    }
+
+    
+    for(int i=0;i<n;i++){
+        if(getMin(n,y_domain,i)<=n&&getMin(n,y_domain,i)!=old_min_women[i]){
+            printf("Mistake in woman %i! Min is %i and old_min is %i!\n",i,getMin(n,y_domain,i),old_min_women[i]);
         }
     }
     for(int i=0;i<n;i++){
-        if(old_min_men[i]>=n){
-            printf("min_men suggests man %i is empty\n",i);
+        if(getMax(n,y_domain,i)>0&&getMax(n,y_domain,i)!=old_max_women[i]){
+            printf("Mistake in woman %i! Max is %i and old_max is %i!\n",i,getMax(n,y_domain,i),old_max_women[i]);
         }
     }*/
     //debug
