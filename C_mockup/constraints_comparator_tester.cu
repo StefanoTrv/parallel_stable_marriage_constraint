@@ -567,7 +567,7 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
             }
         }
         if(emptyX || emptyY){
-            printf("Empty.\n");
+            //printf("Empty.\n");
             return -1;
         }
     }

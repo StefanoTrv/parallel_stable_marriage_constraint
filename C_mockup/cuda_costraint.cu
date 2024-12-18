@@ -107,7 +107,6 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
             if(m_val > p_val){//w prefers p to m
                 //printf("Deleting woman %i (with index %i) from domain of man %i (thread %i), because the woman declined.\n",w,w_index,m,id);
                 old_min_men[m]=w_index+1; //atomicMax could be used, but it would very rarely make a difference
-                //atomicMax(old_min_men+m,w_index+1);
                 //printf("New old_min_men for man %i is %i\n",m,w_index+1);
                 //printf("Caso1 for man %i (thread %i)\n", m, id);
                 //continue;//continues with the same m
@@ -129,7 +128,6 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
             }
         }else{//value not in domain
             old_min_men[m]=w_index+1; //atomicMax could be used, but it would very rarely make a difference
-            //atomicMax(old_min_men+m,w_index+1);
             //printf("New old_min_men for man %i is %i\n",m,w_index+1);
             w = xpl[m*n+w_index];
             m_val = yPx[w*n+m];
