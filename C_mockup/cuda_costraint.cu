@@ -135,7 +135,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
             //atomic read-and-write of max_women[w]
             p_val = atomicMin(max_women+w, m_val-1);
             //printf("New max for woman %i is %i (thread %i)\n",w,((p_val<m_val-1) ? p_val : m_val-1),id);
-            for(int i = m_val; i<=p_val; i++){//remove that woman from all the men that were removed from her domain //i=m_val+1? xk sn coerenti
+            for(int i = m_val+1; i<=p_val; i++){//remove that woman from all the men that were removed from her domain (no need for m_val since the domains are coherent)
                 if(getDomainBit2(y_domain,w,i,n)){//value wasn't already removed
                     m_ith=  ypl[w*n+i];
                     w_val = xPy[m_ith*n+w];
