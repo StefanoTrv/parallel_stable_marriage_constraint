@@ -3,7 +3,7 @@
 #include "utils/printer.c"
 #include "domain_functions.c"
 #include "utils\error_handler.cu"
-#include "cuda_costraint.cu"
+#include "cuda_constraint.cu"
 
 void build_reverse_matrix(int,int*, int*);
 void get_block_number_and_dimension(int, int, int*, int*);
