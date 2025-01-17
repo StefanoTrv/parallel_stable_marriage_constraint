@@ -2,7 +2,7 @@
 #include "utils/io.c"
 #include "utils/printer.c"
 #include "domain_functions.c"
-#include "utils\error_handler.cu"
+#include "utils/error_handler.cu"
 #include "cuda_constraint.cu"
 
 void build_reverse_matrix(int,int*, int*);

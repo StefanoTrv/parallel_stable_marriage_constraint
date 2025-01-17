@@ -7,9 +7,9 @@
 #include "utils/printer.c"
 #include "serial_constraint.c"
 //#include "domain_functions.c"
-#include "utils\error_handler.cu"
+#include "utils/error_handler.cu"
 #include "cuda_constraint.cu"
-#include "utils\pcg-c-basic-0.9\pcg_basic.c"
+#include "utils/pcg-c-basic-0.9/pcg_basic.c"
 
 void build_reverse_matrix(int,int*, int*);
 int serial_constraint(int, int*, int*, uint32_t*, uint32_t*);
