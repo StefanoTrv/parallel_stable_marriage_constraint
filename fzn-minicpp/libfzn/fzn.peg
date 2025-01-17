@@ -1,0 +1,79 @@
+R"***(
+
+# FlatZinc Model
+fzn_model <- predicate* constant* variable* constraint* solve
+
+# Predicates
+predicate_parameter <- param_type ":" identifier
+predicate_parameters <- "(" sequence(predicate_parameter) ")"
+predicate <- "predicate" pred_identifier predicate_parameters ";"
+
+# Constants
+basic_constant <- basic_literal_type ":" identifier "=" basic_literal_expr ";"
+array_constant <- array_literal_type ":" identifier "=" array_literal_expr ";"
+constant <- basic_constant / array_constant
+
+# Variables
+basic_variable <- basic_var_type ":" identifier annotations ("=" int_literal)? ";"
+array_variable <- array_var_type ":" identifier annotations "=" array_var_expr ";"
+variable <- basic_variable / array_variable
+
+# Constraints
+constraint_arg <- basic_literal_expr / array_literal_expr / identifier / array_var_expr
+constraint_args <- "(" sequence(constraint_arg) ")"
+constraint <- "constraint" pred_identifier constraint_args annotations ";"
+
+# Solve
+solve <- "solve" search_annotations solve_type identifier? ";"
+
+# Ranges and Sets
+int_range <- int_literal ".." int_literal
+int_ranges <- sequence(int_range)
+int_set <- "{" sequence(int_literal) "}"
+
+# Literals
+int_literal <- <[+-]?[0-9]+>
+float_literal <- <[+-]?[0-9]+"."[0-9]+>
+bool_literal <- "false" | "true"
+
+# Identifiers
+identifier <- <[A-Za-z_][A-Za-z0-9_]*>
+pred_identifier <- <[A-Za-z][A-Za-z0-9_]*>
+
+# Types
+basic_param_type <- basic_literal_type / basic_var_type
+array_param_type <- "array" "[" "int" "]" "of" basic_param_type
+param_type <- basic_param_type / array_param_type
+basic_literal_type <- "bool" / "int"
+array_literal_type <- "array" "[" int_range "]" "of" basic_literal_type
+basic_var_type <- "var" (basic_literal_type / int_range / int_set)
+array_var_type <- "array" "[" int_range "]" "of" basic_var_type
+solve_type <- "satisfy" / "minimize" / "maximize"
+
+# Expressions
+basic_literal_expr <-  int_literal / bool_literal
+array_literal_expr <- "[" sequence(basic_literal_expr) "]"
+fixed_var_expr <- basic_literal_expr
+basic_var_expr <- identifier / fixed_var_expr
+array_var_expr <- "[" sequence(basic_var_expr) "]"
+var_expr <- basic_var_expr / array_var_expr
+
+# Annotations
+annotation_arg <- int_literal / float_literal / identifier / "[" int_ranges "]"
+annotation_args <- ("(" sequence(annotation_arg) ")")?
+annotation <- pred_identifier annotation_args
+annotations <- ("::" annotation)*
+
+# Search annotations
+basic_search_annotation <- pred_identifier "(" var_expr "," sequence(annotation)")"
+array_search_annotation <- pred_identifier "(" "[" sequence(basic_search_annotation) "]" ")"
+search_annotation <- basic_search_annotation / array_search_annotation
+search_annotations <- ("::" search_annotation)*
+
+# Sequence (macro)
+sequence(x) <- (x ("," x)*)?
+
+# Whitespaces (auto-detected)
+%whitespace <- [ \r\n\t]*
+
+)***"

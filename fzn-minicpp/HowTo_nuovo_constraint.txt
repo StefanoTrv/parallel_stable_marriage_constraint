@@ -1,0 +1,102 @@
+
+Clonate il repository:
+https://bitbucket.org/constraint-programming/fzn-minicpp/src/main/
+Fate checkout sul branch:
+gpu-dev-uniud
+
+La procedura che abbiamo impostato è la seguente. Dove trovate scritto "FATTO" vuol dire che 
+abbiamo già fatto (o almeno impostato) quella operazione.
+
+Per aggiungere un nuovo constraint si deve:
+
+*)  creare una specializzazione di   public Constraint :
+  -- creare i file  NOME.cpp e NOME.hpp in  fzn-minicpp/global_constraints   (FATTO)
+     (o in fzn-minicpp/gpu_constriants per le versioni parallele)
+    Vedi il caso completo di NOME=cumulative  per un esempio di come fare l'implementazione della classe,
+     e i due template per  NOME=stable_matching  e NOME=table 
+     nella dir  fzn-minicpp/global_constraints  (non FATTO)
+     prendiamo per esempio il caso  stable_matching  (l'altro è analogo)
+
+  -- creare il costruttore:
+     nel stable_matching.hpp
+     Ora c'è il prototype. Per esempio per stable_matching:
+
+       StableMatching(std::vector<var<int>::Ptr> & m, std::vector<var<int>::Ptr> & w, std::vector<std::vector<int>> const & pm, std::vector<std::vector<int>> const & pw);
+
+     che però è da implementare in stable_matching.cpp
+
+  -- creare i metodi post() e propagate()
+
+     post()  viene eseguito quando il vincolo è aggiunto al modello (accade una volta sola, quando il vincolo
+             viene letto dalla istanza in input e inserito nella rappresentazione interna del problema CSP)
+             Il corpo di post() istruisce il solver su quando invocare il propagate()
+             Per esempio nel caso del cumulative  (in cumulative.cpp) post() contiene la linea:
+                       v->propagateOnBoundChange(this);
+             questo vuol dire che il solver inserirà il constraint nella coda dei constraint da propagare ogni
+             volta che cambiano i bound (min e/o max value) del dominio della variabile v (ove v è una delle variabili
+             che avete creato nella implementazione del constraint. Per ogni variabile ci sarà una indicazione
+             di questo genere).
+             Le altre alternative sono (def nella def delle variabili: libminicpp/intvar.hpp):
+                     propagateOnChange() = quando il dominio di v è cambiato
+                     propagateOnBind()  = quando alla variabile v viene assegnato un valore
+
+     propagate()  viene eseguito quando il vincolo è estratto dalla coda dei constraint da propagare,
+                  per essere propagato.
+                  All'interno di propagate(), invocando i metodi change(), changeMin(), e changeMax()
+                  della variabile, posso scoprire che cambiamento ha subito il suo dominio.
+		  Sono Boolean: non dicono quale sia il cambiamento, ma solo che c'è stato un cambiamento.
+                  Quindi se il propagate() di uno specifico constraint deve conoscere quale è il
+                  cambiamento (per es quale valore è stato eliminato dal dominio) si deve implementare/gestire
+                  qualche struttura dati interna al(la classe) stable_matching/table  che
+                  mantenga le info necessarie (per es. che permetta di scoprire quale valore è stato eliminato)
+
+NB. le parti di questa struttura dati interna che devono subire il backtracking (cioè si deve ripristinare 
+i valori "vecchi" a seguito di un passo di backtrack del solver, possono essere definite usando trail. 
+Ad esempio, come nelle linee di stable_matching.hpp (idem per table.*pp):
+        // Examples:
+        // Backtrackable int vector
+        // std::vector<trail<int>> biv; 
+e in quelle di stable_matching.cpp:
+    // Examples:
+    // Initialization backtrackable int vector: [3,3,3,3,3,3,3,3,3,3]
+    //for (int i = 0; i < 10; i  += 1)
+    //{
+    //    biv.push_back(trail<int>(x[0]->getSolver()->getStateManager(), 3));
+    //}
+In tal caso la gestione è automatica e al momento backtracking è minicpp che ripristina i valori vecchi.
+
+NB. per valutare change*() minicpp confronta il dominio attuale con quello presente l'ultima volta che 
+la coda dei constraint si è svuotata (cioè all'ultimo fix-point ottenuto propagando, non l'ultima volta
+che il dominio è stato modificato).
+
+
+*)FATTO  aggiungere NOME.cpp e NOME.hpp a CMakeLists.txt  (per GLB_CONSTR_SRC e/o GPU_CONSTR_SRC)
+
+
+*)FATTO  scegliere la sintassi minizinc per il nuovo constraint. Per  ora abbiamo pre-fissato
+la sintassi di  stable_matching e table. Ci sono i due file di esempio  in fzn-minicpp/tests
+In base alla sintassi di stable_matching e table descritta in  fzn-minicpp/tests
+abbiamo già modificato il parser e predisposto minicpp alla lettura dei constraint in input
+e all'invocazione dei post  (le due entry "minicpp_table_int" e "minicpp_stable_matching"
+in fzn_constraints_helper.cpp)
+Vedi la entry di "constraint_builder" corrispondente a minicpp_table_int o minicpp_stable_matching
+dove si inizializzano le strutture dati per i due constraint a partire dal constraint letto in input
+(per es per minicpp_stable_matching si iniz. i due vettori uomini e donne (m , w) e le due matrici
+per le preferenze (pm pw)
+
+NB. abbiamo introdotto la notazione ::uniud   da usare nel file di input che descrive il CSP, 
+per dire al solver che deve usare la "vostra" definizione del constraint 
+come per es. in 
+    constraint table(.....)  ::uniud
+(scrivendo solamente    " constraint table(.....) " allora esegue la implementazione di table
+preesistente in minicpp).
+Similmente con 
+    constraint table(.....)  ::gpu
+dico al solver di usare la implementazione che usa gpu (cioè quella in fzn-minicpp/gpu_constriants)
+
+NB. di solito una volta implementato il constraint seriale, quello parallelo si ottiene ereditando dalla classe
+del seriale e specializzando ove serve
+
+*)FATTO  creare i file fzn-minicpp/minizinc/stable_matching.mzn e fzn-minicpp/minizinc/fzn_table_int.mzn
+
+

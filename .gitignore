@@ -48,3 +48,6 @@ __pycache__/
 
 #vscode settings
 .vscode
+
+#build folder for minicpp
+fzn-minicpp/build/
