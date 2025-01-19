@@ -1,28 +1,39 @@
 #include "stable_matching.hpp"
 
-StableMatching::StableMatching(std::vector<var<int>::Ptr> & m, std::vector<var<int>::Ptr> & w, std::vector<std::vector<int>> const & pm, std::vector<std::vector<int>> const & pw) :
-    Constraint(m[0]->getSolver()), _m(m), _w(w), _pm(pm), _pw(pw)
+StableMatching::StableMatching(std::vector<var<int>::Ptr> & m, std::vector<var<int>::Ptr> & w, std::vector<std::vector<int>> const & mpl, std::vector<std::vector<int>> const & wpl) :
+    Constraint(m[0]->getSolver()), _x(m), _y(w), _xpl(mpl), _ypl(wpl)
 {
     setPriority(CLOW);
 
-    // Examples:
-    // Initialization backtrackable int vector: [3,3,3,3,3,3,3,3,3,3]
-    //for (int i = 0; i < 10; i  += 1)
-    //{
-    //    biv.push_back(trail<int>(x[0]->getSolver()->getStateManager(), 3));
-    //}
+    // Get the size of the problem instance
+    _n = static_cast<int>(_x.size());
+
+    // Build inverse matrices
+    _xPy = (int *)malloc(_n * _n * sizeof(int));
+    _yPx = (int *)malloc(_n * _n * sizeof(int));
+    buildReverseMatrix(_n,_xpl,_xPy);
+    buildReverseMatrix(_n,_ypl,_yPx);
+
+    //Initialize yub and xlb
+    for (int i = 0; i < 10; i  += 1)
+    {
+        _yub.push_back(trail<int>(m[0]->getSolver()->getStateManager(), _n-1));
+        _xlb.push_back(trail<int>(m[0]->getSolver()->getStateManager(), 0));
+    }
 }
 
 void StableMatching::post()
 {
-    for (auto const & v : _m)
+    for (auto const & v : _x)
     {
+        v->propagateOnDomainChange(this);
         // v->propagateOnBoundChange(this);
         // v->whenBoundsChange([this, v] {v->removeAbove(0);});
     }
 
-    for (auto const & v : _w)
+    for (auto const & v : _y)
     {
+        v->propagateOnDomainChange(this);
         // v->propagateOnBoundChange(this);
         //v->whenBoundsChange([this, v] {v->removeAbove(0);});
     }
@@ -34,4 +45,12 @@ void StableMatching::propagate()
 {
     // Implement the propagation logic
     printf("%%%%%% Stable matching propagation called.\n");
+}
+
+void StableMatching::buildReverseMatrix(int n, std::vector<std::vector<int>> zpl, int *zPz){
+    for(int i=0;i<n;i++){
+        for(int j=0;j<n;j++){
+            zPz[i*_n+zpl[i][j]]=j;
+        }
+    }
 }
