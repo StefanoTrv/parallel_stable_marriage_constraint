@@ -24,7 +24,7 @@ class StableMatching : public Constraint
         void propagate() override;
     
     protected:
-        void buildReverseMatrix(int n,std::vector<std::vector<int>> zpl, int *zPz);
+        void buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz);
 };
 
 

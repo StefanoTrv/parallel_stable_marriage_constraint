@@ -11,8 +11,8 @@ StableMatching::StableMatching(std::vector<var<int>::Ptr> & m, std::vector<var<i
     // Build inverse matrices
     _xPy = (int *)malloc(_n * _n * sizeof(int));
     _yPx = (int *)malloc(_n * _n * sizeof(int));
-    buildReverseMatrix(_n,_xpl,_xPy);
-    buildReverseMatrix(_n,_ypl,_yPx);
+    buildReverseMatrix(_xpl,_xPy);
+    buildReverseMatrix(_ypl,_yPx);
 
     //Initialize yub and xlb
     for (int i = 0; i < 10; i  += 1)
@@ -27,15 +27,11 @@ void StableMatching::post()
     for (auto const & v : _x)
     {
         v->propagateOnDomainChange(this);
-        // v->propagateOnBoundChange(this);
-        // v->whenBoundsChange([this, v] {v->removeAbove(0);});
     }
 
     for (auto const & v : _y)
     {
         v->propagateOnDomainChange(this);
-        // v->propagateOnBoundChange(this);
-        //v->whenBoundsChange([this, v] {v->removeAbove(0);});
     }
 
     propagate();
@@ -47,9 +43,9 @@ void StableMatching::propagate()
     printf("%%%%%% Stable matching propagation called.\n");
 }
 
-void StableMatching::buildReverseMatrix(int n, std::vector<std::vector<int>> zpl, int *zPz){
-    for(int i=0;i<n;i++){
-        for(int j=0;j<n;j++){
+void StableMatching::buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz){
+    for(int i=0;i<_n;i++){
+        for(int j=0;j<_n;j++){
             zPz[i*_n+zpl[i][j]]=j;
         }
     }
