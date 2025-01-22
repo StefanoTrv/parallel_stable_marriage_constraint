@@ -5,11 +5,12 @@
 #include <stdio.h>
 #include "utils/io.c"
 #include "utils/printer.c"
-#include "serial_constraint.c"
-//#include "domain_functions.c"
+#include "serial_constraint.cpp"
+#include "domain_functions.c"
 #include "utils/error_handler.cu"
 #include "cuda_constraint.cu"
 #include "utils/pcg-c-basic-0.9/pcg_basic.c"
+#include <queue>
 
 void build_reverse_matrix(int,int*, int*);
 int serial_constraint(int, int*, int*, uint32_t*, uint32_t*);
@@ -21,6 +22,8 @@ void make_partial_domain(int,uint32_t*);
 void clone_domain(int, uint32_t*,uint32_t*);
 void get_block_number_and_dimension(int, int, int*, int*);
 int compare_domains(int, uint32_t*, uint32_t*);
+void functionDispatcher(std::queue<constraintCall>*, int, uint32_t*, uint32_t*, int*, int*, int*, int*, int*, int*);
+void freeSerialMemory(int*, int*, int*, int*);
 
 /*
     Executes the tests.
@@ -104,9 +107,9 @@ int main(int argc, char *argv[]) {
             printf("Resulting domains for parallel constraint:\n");
             print_domains(n,men_domain_parallel,women_domain_parallel);
         }
+        free(men_pl);
+        free(women_pl);
     }
-    free(men_pl);
-    free(women_pl);
     free(men_domain);
     free(women_domain);
     free(men_domain_parallel);
@@ -114,7 +117,7 @@ int main(int argc, char *argv[]) {
     free(men_domain_orig);
     free(women_domain_orig);
 
-    printf("\nTesting complete\n%i errors were found out of %i tests (of which, %i where one domain was empty and the other was not)\n%i empty domains were correctly identified",errors,total_tests,empty_notempty_errors,empty_domains_founds);
+    printf("\nTesting complete\n%i errors were found out of %i tests (of which, %i where one domain was empty and the other was not)\n%i empty domains were correctly identified\n",errors,total_tests,empty_notempty_errors,empty_domains_founds);
     return 0;
 }
 
@@ -161,88 +164,81 @@ int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y
         yub[i]=n-1;
     }
 
-    //applies once the constraint
-    uint32_t *old_x_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
-    uint32_t *old_y_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
-    uint32_t *prev_x_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
-    uint32_t *prev_y_domain = (uint32_t *)malloc(((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t));
-    //printf("Before initialization of vectors.\n");
-    for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
-        old_x_domain[i]=4294967295;
-        prev_x_domain[i]=4294967295;
-        old_y_domain[i]=4294967295;
-        prev_y_domain[i]=4294967295;
+    std::queue<constraintCall> queue;
+
+    //Looks for missing values in the domains and adds the proper function to the queue
+    for(int i=0;i<n;i++){
+        if(getMin(n,x_domain,i)>=n||getMax(n,y_domain,i)<0){
+            freeSerialMemory(xPy, yPx, xlb, yub);
+            return -1;
+        }
+        if(getMin(n,x_domain,i)!=0){
+            queue.push(constraintCall(1,i,0,0));
+        }
+        if(getMax(n,y_domain,i)!=n-1){
+            queue.push(constraintCall(2,i,0,0));
+        }
+        for(int k=getMin(n,x_domain,i)+1;k<n;k++){
+            if(getDomainBit(x_domain,i,k,n)!=1){
+                queue.push(constraintCall(0,i,k,1));
+            }
+        }
+        //Applies remove value on the women too (this is missing from the original paper)
+        for(int k=0;k<getMax(n,y_domain,i);k++){
+            if(getDomainBit(y_domain,i,k,n)!=1){
+                queue.push(constraintCall(0,i,k,0));
+            }
+        }
     }
-    //printf("After initialization of vectors.\n");
 
-    init(n,x_domain,y_domain,xpl,ypl,xPy,yPx,xlb);
-    //printf("After init.\n");
+    //Runs init
+    init(n,x_domain,y_domain,xpl,ypl,xPy,yPx,xlb,&queue);
 
-    int stop;
-    while(1){
-        stop=1;
-        for(int i=0;i<n;i++){
-            //printf("%iith iteration\n",i);
-            if(getMin(n,x_domain,i)>=n||getMax(n,y_domain,i)<0){
-                //printf("\n-------------------\nFound empty domain!\n-------------------\n");
-                //print_domains(n,x_domain,y_domain);
-                return -1;
-            }
-            if(getMin(n,x_domain,i)!=getMin(n,old_x_domain,i)){
-                deltaMin(i,n,x_domain,y_domain,xpl,ypl,xPy,yPx,xlb);
-                //printf("deltaMin %i\n",i);
-                //print_domains(n,x_domain,y_domain);
-                stop=0;
-            }
-            if(getMax(n,y_domain,i)!=getMax(n,old_y_domain,i)){
-                deltaMax(i,n,x_domain,y_domain,xpl,ypl,xPy,yPx,yub);
-                //printf("deltaMax %i\n",i);
-                //print_domains(n,x_domain,y_domain);
-                stop=0;
-            }
-            for(int k=getMin(n,x_domain,i)+1;k<=getMax(n,old_x_domain,i);k++){
-                if(getDomainBit(x_domain,i,k,n)!=getDomainBit(old_x_domain,i,k,n)){
-                    removeValue(i,k,n,x_domain,y_domain,xpl,ypl,xPy,yPx);
-                    //printf("removeValue %i %i\n",i,k);
-                    //print_domains(n,x_domain,y_domain);
-                    stop=0;
-                }
-            }
-            //Applies remove value on the women too (this is missing from the original paper)
-            for(int k=getMin(n,old_y_domain,i);k<getMax(n,y_domain,i);k++){
-                if(getDomainBit(y_domain,i,k,n)!=getDomainBit(old_y_domain,i,k,n)){
-                    removeValue(i,k,n,y_domain,x_domain,ypl,xpl,yPx,xPy);
-                    stop=0;
-                }
-            }
-        }
-
-        if(stop){
-            break;
-        }
-
-        //printf("I have not stopped!\n");
-
-        //updates old domains
-        for(int i=0;i<(n * n) / 32 + (n % 32 != 0);i++){
-            old_x_domain[i]=prev_x_domain[i];
-            old_y_domain[i]=prev_y_domain[i];
-            prev_x_domain[i]=x_domain[i];
-            prev_y_domain[i]=y_domain[i];
-        }
+    // Executes functions until the queue is empty
+    while(!queue.empty()){
+        functionDispatcher(&queue,n,x_domain,y_domain,xpl,ypl,xPy,yPx,xlb,yub);
     }
     
+    // Checks if there's an empty domain
+    for(int i=0;i<n;i++){
+        //printf("%iith iteration\n",i);
+        if(getMin(n,x_domain,i)>=n||getMax(n,y_domain,i)<0){
+            //printf("\n-------------------\nFound empty domain!\n-------------------\n");
+            //print_domains(n,x_domain,y_domain);
+            freeSerialMemory(xPy, yPx, xlb, yub);
+            return -1;
+        }
+    }
+
     //Frees memory and closes
+    freeSerialMemory(xPy, yPx, xlb, yub);
+    
+    return 0;
+}
+
+void functionDispatcher(std::queue<constraintCall> *queue, int n, uint32_t* x_domain, uint32_t* y_domain, int* xpl, int* ypl, int* xPy, int* yPx, int* xlb, int* yub){
+    constraintCall c = queue->front();
+    switch (c.function) {
+        case 0: // removeValue
+            removeValue(c.ij,c.a,c.isMan,n,x_domain,y_domain,xpl,ypl,xPy,yPx,queue);
+            break;
+
+        case 1: // deltaMin
+            deltaMin(c.ij,n,x_domain,y_domain,xpl,ypl,xPy,yPx,xlb,queue);
+            break;
+
+        case 2: // deltaMax
+            deltaMax(c.ij,n,x_domain,y_domain,xpl,ypl,xPy,yPx,yub,queue);
+            break;
+    }
+    queue->pop();
+}
+
+void freeSerialMemory(int *xPy, int *yPx, int *xlb, int *yub) {
     free(xPy);
     free(yPx);
     free(xlb);
     free(yub);
-    free(old_x_domain);
-    free(old_y_domain);
-    free(prev_x_domain);
-    free(prev_y_domain);
-    
-    return 0;
 }
 
 /*
