@@ -30,8 +30,7 @@ StableMatching::StableMatching(std::vector<var<int>::Ptr> & m, std::vector<var<i
     }
 }
 
-void StableMatching::post()
-{
+void StableMatching::post(){
     for (auto const & v : _x)
     {
         v->propagateOnDomainChange(this);
@@ -42,15 +41,38 @@ void StableMatching::post()
         v->propagateOnDomainChange(this);
     }
 
-    //init();
+    init();
 
     propagateOnQueue();
 }
 
-void StableMatching::propagate()
-{
-    // Implement the propagation logic
-    printf("%%%%%% Stable matching propagation called.\n");
+void StableMatching::propagate(){
+    //Fills queue
+    for(int i=0; i<_n; i++){
+        if(_x[i]->min()!=_xlb[i]){ //Check if min changed using xlb (more precise than changedMin())
+            _callQueue.push(constraintCall(1,i,0,0));
+        }
+        if(_y[i]->max()!=_yub[i]){ //Check if max changed using yub (more precise than changedMin())
+            _callQueue.push(constraintCall(2,i,0,0));
+        }
+        if(_x[i]->changed()){ //Search domain for removed values only if variable is marked as changed
+            for(int k=_x[i]->min()+1;k<=_xub[i];k++){
+                if(!_x[i]->contains(k)){
+                    _callQueue.push(constraintCall(0,i,k,1));
+                }
+            }
+        }
+        //Applies remove value on the women too (this is missing from the original paper)
+        if(_y[i]->changed()){//Search domain for removed values only if variable is marked as changed
+            for(int k=_ylb[i];k<_y[i]->max();k++){
+                if(!_y[i]->contains(k)){
+                    _callQueue.push(constraintCall(0,i,k,0));
+                }
+            }
+        }
+    }
+
+    propagateOnQueue();
 }
 
 void StableMatching::buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz){
@@ -62,22 +84,31 @@ void StableMatching::buildReverseMatrix(std::vector<std::vector<int>> zpl, int *
 }
 
 void StableMatching::propagateOnQueue(){
-    //asd
+    // Executes functions until the queue is empty
+    while(!_callQueue.empty()){
+        functionDispatcher();
+    }
+
+    //Updates bounds not used by the subfunctions
+    for(int i=0;i<_n;i++){
+        _ylb[i]=_y[i]->min();
+        _xub[i]=_x[i]->max();
+    }
 }
 
 void StableMatching::functionDispatcher(){
     constraintCall c = _callQueue.front();
     switch (c.function) {
         case 0: // removeValue
-            //removeValue(c.ij,c.a,c.isMan,n,x_domain,y_domain,xpl,ypl,xPy,yPx,queue);
+            removeValue(c.ij,c.a,c.isMan);
             break;
 
         case 1: // deltaMin
-            //deltaMin(c.ij,n,x_domain,y_domain,xpl,ypl,xPy,yPx,xlb,queue);
+            deltaMin(c.ij);
             break;
 
         case 2: // deltaMax
-            //deltaMax(c.ij,n,x_domain,y_domain,xpl,ypl,xPy,yPx,yub,queue);
+            deltaMax(c.ij);
             break;
     }
     _callQueue.pop();
