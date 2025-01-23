@@ -1,3 +1,9 @@
+//Based on the paper:
+//  "An n-ary Constraint for the Stable Marriage Problem"
+//  by Chris Unsworth and Patrick Prosser
+//  (http://arxiv.org/abs/1308.0183)
+
+
 #include "stable_matching.hpp"
 
 StableMatching::StableMatching(std::vector<var<int>::Ptr> & m, std::vector<var<int>::Ptr> & w, std::vector<std::vector<int>> const & mpl, std::vector<std::vector<int>> const & wpl) :
@@ -18,6 +24,8 @@ StableMatching::StableMatching(std::vector<var<int>::Ptr> & m, std::vector<var<i
     for (int i = 0; i < 10; i  += 1)
     {
         _yub.push_back(trail<int>(m[0]->getSolver()->getStateManager(), _n-1));
+        _ylb.push_back(trail<int>(m[0]->getSolver()->getStateManager(), 0));
+        _xub.push_back(trail<int>(m[0]->getSolver()->getStateManager(), _n-1));
         _xlb.push_back(trail<int>(m[0]->getSolver()->getStateManager(), 0));
     }
 }
@@ -34,7 +42,9 @@ void StableMatching::post()
         v->propagateOnDomainChange(this);
     }
 
-    propagate();
+    //init();
+
+    propagateOnQueue();
 }
 
 void StableMatching::propagate()
@@ -48,5 +58,92 @@ void StableMatching::buildReverseMatrix(std::vector<std::vector<int>> zpl, int *
         for(int j=0;j<_n;j++){
             zPz[i*_n+zpl[i][j]]=j;
         }
+    }
+}
+
+void StableMatching::propagateOnQueue(){
+    //asd
+}
+
+void StableMatching::functionDispatcher(){
+    constraintCall c = _callQueue.front();
+    switch (c.function) {
+        case 0: // removeValue
+            //removeValue(c.ij,c.a,c.isMan,n,x_domain,y_domain,xpl,ypl,xPy,yPx,queue);
+            break;
+
+        case 1: // deltaMin
+            //deltaMin(c.ij,n,x_domain,y_domain,xpl,ypl,xPy,yPx,xlb,queue);
+            break;
+
+        case 2: // deltaMax
+            //deltaMax(c.ij,n,x_domain,y_domain,xpl,ypl,xPy,yPx,yub,queue);
+            break;
+    }
+    _callQueue.pop();
+}
+
+void StableMatching::removeValue(int i, int a, int isMan){
+    if (isMan){
+        int j = _xpl[i][a];
+        if (_y[j]->contains(_yPx[j*_n+i])){
+            if(_y[j]->max()==_yPx[j*_n+i]){
+                //Adds deltaMax to queue
+                _callQueue.push(constraintCall(2,j,0,0));
+            }
+            _y[j]->remove(_yPx[j*_n+i]);
+        }
+    } else {
+        int j = _ypl[i][a];
+        if(_x[j]->contains(_xPy[j*_n+i])){
+            if(_x[j]->min()==_xPy[j*_n+i]){
+                //Adds deltaMin to queue
+                _callQueue.push(constraintCall(1,j,0,0));
+            }
+            _x[j]->remove(_xPy[j*_n+i]);
+        }
+    }
+}
+
+void StableMatching::deltaMin(int i){  //Note: we know that this won't ever be launched on an empty domain
+    int j = _xpl[i][_x[i]->min()];
+    if(_y[j]->max()>_yPx[j*_n+i]){
+        _y[j]->removeAbove(_yPx[j*_n+i]);
+        //Adds deltaMax to queue
+        _callQueue.push(constraintCall(2,j,0,0));
+    }
+    for(int k=_xlb[i]; k<_x[i]->min();k++){
+        j = _xpl[i][k];
+        if (_y[j]->max()>_yPx[j*_n+i]-1){
+            _y[j]->removeAbove(_yPx[j*_n+i]-1);
+            //Adds deltaMax to queue
+            _callQueue.push(constraintCall(2,j,0,0));
+        }
+    }
+    _xlb[i] = _x[i]->min();
+}
+
+void StableMatching::deltaMax(int j){
+    int i;
+    for(int k=_y[j]+1;k<=_yub[j];k++){
+        i = _ypl[j][k];
+        if(_x[i]->contains(_xPy[i*_n+j])){
+            if(_x[i]->min()==_xPy[i*_n+j]){
+                _x[i]->remove(_xPy[i*_n+j]);
+                //Adds deltaMin to queue
+                _callQueue.push(constraintCall(1,i,0,0));
+            } else {
+                _x[i]->remove(_xPy[i*_n+j]);
+                //Adds removeValue to queue
+                _callQueue.push(constraintCall(0,i,_xPy[i*_n+j],1));
+            }
+        }
+    }
+    _yub[j]=_y[j]->max();
+}
+
+void StableMatching::init(){
+    for(int i=0;i<_n;i++){
+        deltaMin(i);
     }
 }
