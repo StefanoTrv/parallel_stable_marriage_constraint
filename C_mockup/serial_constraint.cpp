@@ -38,7 +38,6 @@ struct constraintCall{
 }*/
 
 void removeValue(int i, int a, int isMan, int n, uint32_t* x_domain, uint32_t* y_domain, int* xpl, int* ypl, int* xPy, int* yPx, std::queue<constraintCall> *queue){
-    //printf("removeValue\n");
     if (isMan){
         int j = xpl[i*n+a];
         if (getDomainBit(y_domain,j,yPx[j*n+i],n)){
@@ -61,7 +60,6 @@ void removeValue(int i, int a, int isMan, int n, uint32_t* x_domain, uint32_t* y
 }
 
 void deltaMin(int i, int n, uint32_t* x_domain, uint32_t* y_domain, int* xpl, int* ypl, int* xPy, int* yPx, int* xlb, std::queue<constraintCall> *queue){
-    //printf("deltaMin\n");
     if (getMin(n,x_domain,i)==n) return; //Domain is empty, no reason to continue
     int j = xpl[i*n+getMin(n,x_domain,i)];
     if (getMax(n,y_domain,j)>yPx[j*n+i]){
@@ -81,7 +79,6 @@ void deltaMin(int i, int n, uint32_t* x_domain, uint32_t* y_domain, int* xpl, in
 }
 
 void deltaMax(int j, int n, uint32_t* x_domain, uint32_t* y_domain, int* xpl, int* ypl, int* xPy, int* yPx, int* yub, std::queue<constraintCall> *queue){
-    //printf("deltaMax\n");
     int i;
     for(int k=getMax(n,y_domain,j)+1;k<=yub[j];k++){
         i = ypl[j*n+k];

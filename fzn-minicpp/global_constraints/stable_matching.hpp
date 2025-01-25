@@ -29,10 +29,10 @@ class StableMatching : public Constraint
 
     // Constraint private data structures
     protected:
-        std::vector<var<int>::Ptr> & _x;
-        std::vector<var<int>::Ptr> & _y;
-        std::vector<std::vector<int>> const & _xpl;
-        std::vector<std::vector<int>> const & _ypl;
+        std::vector<var<int>::Ptr> _x;
+        std::vector<var<int>::Ptr> _y;
+        std::vector<std::vector<int>> const _xpl;
+        std::vector<std::vector<int>> const _ypl;
         int *_xPy;
         int *_yPx;
         int _n;

@@ -113,6 +113,7 @@ int main(int argc, char *argv[]) {
     for(int i = 0;i<n;i++){
         printf("%i ",getMin(n,x_domain,i));
     }
+    printf("\n");
     
     
     //Frees memory and closes

@@ -49,7 +49,7 @@ void parse_input(const char *file_path, int *n, int **xpl, int **ypl, uint32_t *
     fgetc(file);
 
     // Check if domains are present in the file
-    if ((file_size - ftell(file)) >= ((*n) * (*n) * 2) / 32) {
+    if ((file_size - ftell(file)) >= ((*n) * (*n) * 2)) {
         *x_domain = (uint32_t *)malloc((((*n) * (*n)) / 32 + ((*n) % 32 != 0)) * sizeof(uint32_t));
         *y_domain = (uint32_t *)malloc((((*n) * (*n)) / 32 + ((*n) % 32 != 0)) * sizeof(uint32_t));
         // Read x_domain

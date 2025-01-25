@@ -40,7 +40,6 @@ void StableMatching::post(){
     {
         v->propagateOnDomainChange(this);
     }
-
     init();
 
     propagateOnQueue();
@@ -156,7 +155,7 @@ void StableMatching::deltaMin(int i){  //Note: we know that this won't ever be l
 
 void StableMatching::deltaMax(int j){
     int i;
-    for(int k=_y[j]+1;k<=_yub[j];k++){
+    for(int k=_y[j]->max()+1;k<=_yub[j];k++){
         i = _ypl[j][k];
         if(_x[i]->contains(_xPy[i*_n+j])){
             if(_x[i]->min()==_xPy[i*_n+j]){
