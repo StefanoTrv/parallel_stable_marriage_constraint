@@ -326,7 +326,7 @@ void Fzn::Parser::add_ranges_sets_actions()
     // int_set <- "{" sequence(int_literal) "}"
     fzn_parser["int_set"] = [](SemanticValues const & vs)
     {
-        return sequence_action<int_set_t>(vs);
+        return sequence_action<int>(vs);
     };
 }
 
