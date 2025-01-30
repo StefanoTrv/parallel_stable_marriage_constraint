@@ -14,6 +14,7 @@
 #include "global_constraints/smart_table.hpp"
 #include "global_constraints/stable_matching.hpp"
 #include "gpu_constriants/cumulative.cuh"
+#include "gpu_constriants/stable_matching.cuh"
 
 using backward_implication_t = std::function<void()>;
 
@@ -931,13 +932,18 @@ void FznConstraintHelper::addGlobalConstraintsBuilders()
         }
 
         bool const uniud = count_if(anns.begin(), anns.end(), [](Fzn::annotation_t const & ann) -> bool {return ann.first == "uniud";});
+        bool const gpu = count_if(anns.begin(), anns.end(), [](Fzn::annotation_t const & ann) -> bool {return ann.first == "gpu";});
         if (uniud)
         {
             return new (solver) StableMatching(m, w, pm, pw);
         }
+        else if (gpu)
+        {
+            return new (solver) StableMatchingGPU(m, w, pm, pw);
+        }
         else
         {
-            throw std::runtime_error("Missing search annotation on stable_matching constraint: \"::uniud\"");
+            throw std::runtime_error("Missing search annotation on stable_matching constraint: \"::uniud\" or \"::gpu\"");
         }
     });
 }
