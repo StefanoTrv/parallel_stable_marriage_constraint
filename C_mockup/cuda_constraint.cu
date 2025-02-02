@@ -5,17 +5,17 @@ __constant__ uint32_t ALL_ONES = 4294967295;
 
 // f1: removes from the women's domains the men who don't have that woman in their list (domain) anymore, and vice versa
 // Modifies only the domains
-__global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* stack_mod_men, int* stack_mod_women, int* length_men_stack, int* length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women){
+__global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* stack_mod_men, int* stack_mod_women, int length_men_stack, int length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women){
     int id = threadIdx.x + blockIdx.x * blockDim.x;
     //closes redundant threads
-    if (id>= *length_men_stack + *length_women_stack){
+    if (id>= length_men_stack + length_women_stack){
         //printf("Returning %i\n",id);
         return;
     }
     //printf("Continuing %i\n",id);
     //gets person associated with thread and picks the correct data structures
     int person, other_person, other_index, temp;
-    int is_man = id < *length_men_stack;
+    int is_man = id < length_men_stack;
     int *old_min, *old_max, *other_zPz, *zpl;
     uint32_t *person_domain, *other_domain;
     if(is_man){
@@ -27,7 +27,7 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
         zpl = xpl;
         other_zPz = yPx;
     } else {
-        person = stack_mod_women[id - *length_men_stack];
+        person = stack_mod_women[id - length_men_stack];
         old_min = old_min_women;
         old_max = old_max_women;
         person_domain = y_domain;
@@ -55,7 +55,7 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
 
 // f2: applies the stable marriage constraint
 // Modifies old_min_men, max_women and x_domain
-__global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women){
+__global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* max_men, int* max_women){
     int id = threadIdx.x + blockIdx.x * blockDim.x;
     //closes redundant threads
     if (id>= *length_min_men_stack){
@@ -157,7 +157,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
 
 //f3: finalizes the changes in the domains and computes the new old_maxes and old_mins
 // Modifies y_domain, old_max_women, old_max_men and old_min_women
-__global__ void finalize_changes(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* stack_mod_men, int* stack_mod_women, int* length_men_stack, int* length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women){
+__global__ void finalize_changes(int n, uint32_t* x_domain, uint32_t* y_domain, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women){
     int id = threadIdx.x + blockIdx.x * blockDim.x;
     //closes redundant threads
     if (id>= n){

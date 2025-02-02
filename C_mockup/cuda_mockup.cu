@@ -68,32 +68,28 @@ int main(int argc, char *argv[]) {
     HANDLE_ERROR(cudaMemcpy(d_x_domain, x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyHostToDevice));
     HANDLE_ERROR(cudaMemcpy(d_y_domain, y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyHostToDevice));
 
-    int *stack_mod_men, *stack_mod_women, *stack_mod_min_men, *new_stack_mod_min_men, *length_men_stack, *length_women_stack, *length_min_men_stack, *new_length_min_men_stack;
+    int *stack_mod_men, *stack_mod_women, *stack_mod_min_men, *new_stack_mod_min_men, *length_min_men_stack, *new_length_min_men_stack;
 	HANDLE_ERROR(cudaHostAlloc((void**)&stack_mod_men, sizeof (int) * n, cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&stack_mod_women, sizeof (int) * n, cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&stack_mod_min_men, sizeof (int) * n, cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&new_stack_mod_min_men, sizeof (int) * n, cudaHostAllocMapped));
-	HANDLE_ERROR(cudaHostAlloc((void**)&length_men_stack, sizeof (int), cudaHostAllocMapped));
-	HANDLE_ERROR(cudaHostAlloc((void**)&length_women_stack, sizeof (int), cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&length_min_men_stack, sizeof (int), cudaHostAllocMapped));
 	HANDLE_ERROR(cudaHostAlloc((void**)&new_length_min_men_stack, sizeof (int), cudaHostAllocMapped));
-    *length_men_stack = n;
-    *length_women_stack = n;
+    int length_men_stack, length_women_stack;
+    length_men_stack = n;
+    length_women_stack = n;
     *length_min_men_stack = 0; //for f1 we pretend that it's empty, then we fill it before f2
     *new_length_min_men_stack = 0;
     for (int i=0;i<n;i++){
         stack_mod_men[i]=i;
         stack_mod_women[i]=i;
-        //stack_mod_min_men[i]=i;
     }
-    int *d_array_min_mod_men, *d_stack_mod_men, *d_stack_mod_women, *d_stack_mod_min_men, *d_new_stack_mod_min_men, *d_length_men_stack, *d_length_women_stack, *d_length_min_men_stack, *d_new_length_min_men_stack;
+    int *d_array_min_mod_men, *d_stack_mod_men, *d_stack_mod_women, *d_stack_mod_min_men, *d_new_stack_mod_min_men, *d_length_min_men_stack, *d_new_length_min_men_stack;
     HANDLE_ERROR(cudaMalloc((void**)&d_array_min_mod_men, sizeof (int) * n));
     HANDLE_ERROR(cudaHostGetDevicePointer(&d_stack_mod_men, stack_mod_men, 0));
     HANDLE_ERROR(cudaHostGetDevicePointer(&d_stack_mod_women, stack_mod_women, 0));
     HANDLE_ERROR(cudaHostGetDevicePointer(&d_stack_mod_min_men, stack_mod_min_men, 0));
     HANDLE_ERROR(cudaHostGetDevicePointer(&d_new_stack_mod_min_men, new_stack_mod_min_men, 0));
-    HANDLE_ERROR(cudaHostGetDevicePointer(&d_length_men_stack, length_men_stack, 0));
-    HANDLE_ERROR(cudaHostGetDevicePointer(&d_length_women_stack, length_women_stack, 0));
     HANDLE_ERROR(cudaHostGetDevicePointer(&d_length_min_men_stack, length_min_men_stack, 0));
     HANDLE_ERROR(cudaHostGetDevicePointer(&d_new_length_min_men_stack, new_length_min_men_stack, 0));
 
@@ -166,11 +162,11 @@ int main(int argc, char *argv[]) {
     struct cudaDeviceProp props;
     cudaGetDeviceProperties(&props, device);
     int n_SMP = props.multiProcessorCount;
-    int n_threads = *length_men_stack + *length_women_stack;
+    int n_threads = length_men_stack + length_women_stack;
     int n_blocks, block_size;
     get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
     
-    make_domains_coherent<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_stack_mod_men, d_stack_mod_women, d_length_men_stack, d_length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women);
+    make_domains_coherent<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_stack_mod_men, d_stack_mod_women, length_men_stack, length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women);
     cudaDeviceSynchronize();
     
     //debug
@@ -192,9 +188,8 @@ int main(int argc, char *argv[]) {
     n_threads = *length_min_men_stack;
     get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
 
-    //block_size = (*length_min_men_stack + n_blocks - 1) / n_blocks;
     printf("new_length_min_men_stack value: %i\n",*new_length_min_men_stack);
-    apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women);
+    apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_max_men, d_max_women);
     cudaDeviceSynchronize();
     printf("new_length_min_men_stack value: %i\n",*new_length_min_men_stack);
     while(*new_length_min_men_stack!=0){
@@ -211,12 +206,9 @@ int main(int argc, char *argv[]) {
         temp_p = d_new_stack_mod_min_men;
         d_new_stack_mod_min_men = d_stack_mod_min_men;
         d_stack_mod_min_men = temp_p;
-        //temp_p = new_stack_mod_min_men;
-        //new_stack_mod_min_men = stack_mod_min_men;
-        //stack_mod_min_men = temp_p;
         n_threads = *length_min_men_stack;
         get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
-        apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women);
+        apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_max_men, d_max_women);
         cudaDeviceSynchronize();
     }
 
@@ -229,8 +221,7 @@ int main(int argc, char *argv[]) {
 
     n_threads = n;
     get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
-    //block_size = (n + n_blocks - 1) / n_blocks;
-    finalize_changes<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_stack_mod_men, d_stack_mod_women, d_length_men_stack, d_length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women);
+    finalize_changes<<<n_blocks,block_size>>>(n,d_x_domain,d_y_domain, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women);
 
     //copies from device memory
     HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
@@ -239,11 +230,6 @@ int main(int argc, char *argv[]) {
     HANDLE_ERROR(cudaMemcpy(old_max_men, d_old_max_men, sizeof(int) * n, cudaMemcpyDeviceToHost));
     HANDLE_ERROR(cudaMemcpy(old_min_women, d_old_min_women, sizeof(int) * n, cudaMemcpyDeviceToHost));
     HANDLE_ERROR(cudaMemcpy(old_max_women, d_old_max_women, sizeof(int) * n, cudaMemcpyDeviceToHost));
-
-    //sets the lenghts to 0 (useless in this mockup)
-    *length_men_stack = 0;
-    *length_women_stack = 0;
-    *length_min_men_stack = 0;
 
     //frees device memory
     HANDLE_ERROR(cudaFree(d_xpl));
@@ -258,8 +244,6 @@ int main(int argc, char *argv[]) {
     HANDLE_ERROR(cudaFreeHost(stack_mod_women));
     HANDLE_ERROR(cudaFreeHost(stack_mod_min_men));
     HANDLE_ERROR(cudaFreeHost(new_stack_mod_min_men));
-    HANDLE_ERROR(cudaFreeHost(length_men_stack));
-    HANDLE_ERROR(cudaFreeHost(length_women_stack));
     HANDLE_ERROR(cudaFreeHost(length_min_men_stack));
     HANDLE_ERROR(cudaFreeHost(new_length_min_men_stack));
 
