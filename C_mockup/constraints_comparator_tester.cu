@@ -245,7 +245,7 @@ void freeSerialMemory(int *xPy, int *yPx, int *xlb, int *yub) {
     CUDA CONSTRAINT
 */
 
-int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_domain) {
+int cuda_constraint(int n, int *_xpl, int *_ypl, uint32_t *x_domain, uint32_t *y_domain) {
     int temp, *temp_p;
 
     //Domain device memory allocation and transfer
@@ -257,58 +257,47 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
 
 
     //Host memory allocation
-    int *xPy, *yPx;
-    xPy = (int *)malloc(n * n * sizeof(int));
-    yPx = (int *)malloc(n * n * sizeof(int));
-
-    int *stack_mod_men, *stack_mod_women, *stack_mod_min_men, *new_stack_mod_min_men, *length_min_men_stack, *new_length_min_men_stack;
-	HANDLE_ERROR(cudaHostAlloc((void**)&stack_mod_men, sizeof (int) * n, cudaHostAllocMapped));
-	HANDLE_ERROR(cudaHostAlloc((void**)&stack_mod_women, sizeof (int) * n, cudaHostAllocMapped));
-	HANDLE_ERROR(cudaHostAlloc((void**)&stack_mod_min_men, sizeof (int) * n, cudaHostAllocMapped));
-	HANDLE_ERROR(cudaHostAlloc((void**)&new_stack_mod_min_men, sizeof (int) * n, cudaHostAllocMapped));
-	HANDLE_ERROR(cudaHostAlloc((void**)&length_min_men_stack, sizeof (int), cudaHostAllocMapped));
-	HANDLE_ERROR(cudaHostAlloc((void**)&new_length_min_men_stack, sizeof (int), cudaHostAllocMapped));
     int length_men_stack, length_women_stack;
-
-    int *old_min_men, *old_max_men, *old_min_women, *old_max_women;
-    old_min_men = (int*)malloc(sizeof (int) * n);
-    old_max_men = (int*)malloc(sizeof (int) * n);
-    old_min_women = (int*)malloc(sizeof (int) * n);
-    old_max_women = (int*)malloc(sizeof (int) * n);
-    
-    int *max_men, *min_women, *max_women;
-    max_men = (int*)malloc(sizeof (int) * n);
-    min_women = (int*)malloc(sizeof (int) * n);
-    max_women = (int*)malloc(sizeof (int) * n);
+    int *xpl = (int *)malloc((n * n * 4 + n * 10 + 2) * sizeof(int));; //only to make the transition to the real constraint easier
+    int *ypl = xpl + (n * n);
+    memcpy(xpl, _xpl, n * n * sizeof (int));
+    memcpy(ypl, _ypl, n * n * sizeof (int));
+    int *xPy = ypl + (n * n);
+    int *yPx = xPy + (n * n);
+    int *stack_mod_men = yPx + (n * n);
+    int *stack_mod_women = stack_mod_men + n;
+    int *stack_mod_min_men = stack_mod_women + n;
+    int *old_min_men = stack_mod_min_men + n;
+    int *old_max_men = old_min_men + n;
+    int *old_min_women = old_max_men + n;
+    int *old_max_women = old_min_women + n;
+    int *max_men = old_max_women + n;
+    int *min_women = max_men + n;
+    int *max_women = min_women + n;
+    int *length_min_men_stack = max_women + n;
+    int *new_length_min_men_stack = length_min_men_stack + 1;
 
 
     //Device memory allocation
-    int *d_xpl, *d_ypl, *d_xPy, *d_yPx;
-
-    HANDLE_ERROR(cudaMalloc((void**)&d_xpl, sizeof(int) * n * n));
-    HANDLE_ERROR(cudaMalloc((void**)&d_ypl, sizeof(int) * n * n));
-    HANDLE_ERROR(cudaMalloc((void**)&d_xPy, sizeof(int) * n * n));
-    HANDLE_ERROR(cudaMalloc((void**)&d_yPx, sizeof(int) * n * n));
-
-    int *d_array_min_mod_men, *d_stack_mod_men, *d_stack_mod_women, *d_stack_mod_min_men, *d_new_stack_mod_min_men, *d_length_min_men_stack, *d_new_length_min_men_stack;
-    HANDLE_ERROR(cudaMalloc((void**)&d_array_min_mod_men, sizeof (int) * n));
-    HANDLE_ERROR(cudaHostGetDevicePointer(&d_stack_mod_men, stack_mod_men, 0));
-    HANDLE_ERROR(cudaHostGetDevicePointer(&d_stack_mod_women, stack_mod_women, 0));
-    HANDLE_ERROR(cudaHostGetDevicePointer(&d_stack_mod_min_men, stack_mod_min_men, 0));
-    HANDLE_ERROR(cudaHostGetDevicePointer(&d_new_stack_mod_min_men, new_stack_mod_min_men, 0));
-    HANDLE_ERROR(cudaHostGetDevicePointer(&d_length_min_men_stack, length_min_men_stack, 0));
-    HANDLE_ERROR(cudaHostGetDevicePointer(&d_new_length_min_men_stack, new_length_min_men_stack, 0));
-
-    int *d_old_min_men, *d_old_max_men, *d_old_min_women, *d_old_max_women;
-    HANDLE_ERROR(cudaMalloc((void**)&d_old_min_men, sizeof(int) * n));
-    HANDLE_ERROR(cudaMalloc((void**)&d_old_max_men, sizeof(int) * n));
-    HANDLE_ERROR(cudaMalloc((void**)&d_old_min_women, sizeof(int) * n));
-    HANDLE_ERROR(cudaMalloc((void**)&d_old_max_women, sizeof(int) * n));
-
-    int *d_max_men, *d_min_women, *d_max_women;
-    HANDLE_ERROR(cudaMalloc((void**)&d_max_men, sizeof(int) * n));
-    HANDLE_ERROR(cudaMalloc((void**)&d_min_women, sizeof(int) * n));
-    HANDLE_ERROR(cudaMalloc((void**)&d_max_women, sizeof(int) * n));
+    int *d_xpl;
+    HANDLE_ERROR(cudaMalloc((void**)&d_xpl, sizeof(int) * (n * n * 4 + n * 12 + 2)));
+    int *d_ypl = d_xpl + n * n;
+    int *d_xPy = d_ypl + n * n;
+    int *d_yPx = d_xPy + n * n;
+    int *d_stack_mod_men = d_yPx + n * n;
+    int *d_stack_mod_women = d_stack_mod_men + n;
+    int *d_stack_mod_min_men = d_stack_mod_women + n;
+    int *d_old_min_men = d_stack_mod_min_men + n;
+    int *d_old_max_men = d_old_min_men + n;
+    int *d_old_min_women = d_old_max_men + n;
+    int *d_old_max_women = d_old_min_women + n;
+    int *d_max_men = d_old_max_women + n;
+    int *d_min_women = d_max_men + n;
+    int *d_max_women = d_min_women + n;
+    int *d_length_min_men_stack = d_max_women + n;
+    int *d_new_length_min_men_stack = d_length_min_men_stack + 1;
+    int *d_new_stack_mod_min_men = d_new_length_min_men_stack + 1;
+    int *d_array_min_mod_men = d_new_stack_mod_min_men + n;
 
     //Prepares all the data structures
     build_reverse_matrix(n,xpl,xPy);
@@ -359,19 +348,7 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
     }
 
     //Copy into device memory
-    HANDLE_ERROR(cudaMemcpy(d_xpl, xpl, sizeof(int) * n * n, cudaMemcpyHostToDevice));
-    HANDLE_ERROR(cudaMemcpy(d_ypl, ypl, sizeof(int) * n * n, cudaMemcpyHostToDevice));
-    HANDLE_ERROR(cudaMemcpy(d_xPy, xPy, sizeof(int) * n * n, cudaMemcpyHostToDevice));
-    HANDLE_ERROR(cudaMemcpy(d_yPx, yPx, sizeof(int) * n * n, cudaMemcpyHostToDevice));
-
-    HANDLE_ERROR(cudaMemcpy(d_old_min_men, old_min_men, sizeof(int) * n, cudaMemcpyHostToDevice));
-    HANDLE_ERROR(cudaMemcpy(d_old_max_men, old_max_men, sizeof(int) * n, cudaMemcpyHostToDevice));
-    HANDLE_ERROR(cudaMemcpy(d_old_min_women, old_min_women, sizeof(int) * n, cudaMemcpyHostToDevice));
-    HANDLE_ERROR(cudaMemcpy(d_old_max_women, old_max_women, sizeof(int) * n, cudaMemcpyHostToDevice));
-
-    HANDLE_ERROR(cudaMemcpy(d_max_men, max_men, sizeof(int) * n, cudaMemcpyHostToDevice));
-    HANDLE_ERROR(cudaMemcpy(d_min_women, min_women, sizeof(int) * n, cudaMemcpyHostToDevice));
-    HANDLE_ERROR(cudaMemcpy(d_max_women, max_women, sizeof(int) * n, cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpy(d_xpl, xpl, (n * n * 4 + n * 10 + 2) * sizeof(int), cudaMemcpyHostToDevice));
 
     //runs kernels
     int device;
@@ -402,6 +379,8 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
     for (int i=0;i<n;i++){
         stack_mod_min_men[i]=i;
     }
+    HANDLE_ERROR(cudaMemcpy(d_stack_mod_min_men, stack_mod_min_men, sizeof(int) * n, cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpy(d_length_min_men_stack, length_min_men_stack, sizeof(int), cudaMemcpyHostToDevice));
 
     n_threads = *length_min_men_stack;
     get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
@@ -411,6 +390,7 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
     //printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
     apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_max_men, d_max_women);
     cudaDeviceSynchronize();
+    HANDLE_ERROR(cudaMemcpy(new_length_min_men_stack, d_new_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost));
     //printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
     while(*new_length_min_men_stack!=0){
         //debug
@@ -423,6 +403,8 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
         HANDLE_ERROR(cudaMemset(d_array_min_mod_men,0,sizeof(int)*n));
         *length_min_men_stack = *new_length_min_men_stack;
         *new_length_min_men_stack = 0;
+        HANDLE_ERROR(cudaMemcpy(d_length_min_men_stack, length_min_men_stack, sizeof(int), cudaMemcpyHostToDevice));
+        HANDLE_ERROR(cudaMemcpy(d_new_length_min_men_stack, new_length_min_men_stack, sizeof(int), cudaMemcpyHostToDevice));
         temp_p = d_new_stack_mod_min_men;
         d_new_stack_mod_min_men = d_stack_mod_min_men;
         d_stack_mod_min_men = temp_p;
@@ -430,6 +412,7 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
         get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
         apply_sm_constraint<<<n_blocks,block_size>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_max_men, d_max_women);
         cudaDeviceSynchronize();
+        HANDLE_ERROR(cudaMemcpy(new_length_min_men_stack, d_new_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost));
     }
 
     //debug
@@ -453,28 +436,6 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
 
     //frees device memory
     HANDLE_ERROR(cudaFree(d_xpl));
-	HANDLE_ERROR(cudaFree(d_ypl));
-	HANDLE_ERROR(cudaFree(d_xPy));
-	HANDLE_ERROR(cudaFree(d_yPx));
-	HANDLE_ERROR(cudaFree(d_x_domain));
-	HANDLE_ERROR(cudaFree(d_y_domain));
-    HANDLE_ERROR(cudaFree(d_array_min_mod_men));
-
-    HANDLE_ERROR(cudaFreeHost(stack_mod_men));
-    HANDLE_ERROR(cudaFreeHost(stack_mod_women));
-    HANDLE_ERROR(cudaFreeHost(stack_mod_min_men));
-    HANDLE_ERROR(cudaFreeHost(new_stack_mod_min_men));
-    HANDLE_ERROR(cudaFreeHost(length_min_men_stack));
-    HANDLE_ERROR(cudaFreeHost(new_length_min_men_stack));
-
-    HANDLE_ERROR(cudaFree(d_old_min_men));
-    HANDLE_ERROR(cudaFree(d_old_max_men));
-    HANDLE_ERROR(cudaFree(d_old_min_women));
-    HANDLE_ERROR(cudaFree(d_old_max_women));
-    HANDLE_ERROR(cudaFree(d_max_men));
-    HANDLE_ERROR(cudaFree(d_min_women));
-    HANDLE_ERROR(cudaFree(d_max_women));
-
     
     for(int i=0;i<n;i++){
         if(getMin(n,x_domain,i)<=n&&getMin(n,x_domain,i)!=old_min_men[i]){
@@ -503,15 +464,7 @@ int cuda_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y_d
     
     
     //Frees memory and closes
-    free(xPy);
-    free(yPx);
-    free(old_min_men);
-    free(old_min_women);
-    free(old_max_men);
-    free(old_max_women);
-    free(max_men);
-    free(min_women);
-    free(max_women);
+    free(xpl);
 
     //checks if there's an empty domain
     int emptyX, emptyY;
