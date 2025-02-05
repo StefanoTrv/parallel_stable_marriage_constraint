@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
 
     //Host memory allocation
     int length_men_stack, length_women_stack;
-    int *xpl = (int *)malloc((n * n * 4 + n * 10 + 2) * sizeof(int));; //only to make the transition to the real constraint easier
+    int *xpl = (int *)malloc((n * n * 4 + n * 10 + 2) * sizeof(int)); //only to make the transition to the real constraint easier
     int *ypl = xpl + (n * n);
     memcpy(xpl, _xpl, n * n * sizeof (int));
     memcpy(ypl, _ypl, n * n * sizeof (int));

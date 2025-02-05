@@ -9,11 +9,30 @@ class StableMatchingGPU : public Constraint
     protected:
         std::vector<var<int>::Ptr> _x;
         std::vector<var<int>::Ptr> _y;
-        std::vector<std::vector<int>> const _xpl;
-        std::vector<std::vector<int>> const _ypl;
-        int *_xPy;
-        int *_yPx;
+        std::vector<std::vector<int>> const _xpl_vector;
+        std::vector<std::vector<int>> const _ypl_vector;
         int _n;
+        std::vector<trail<int>> _old_min_men_trail;
+        std::vector<trail<int>> _old_max_men_trail;
+        std::vector<trail<int>> _old_min_women_trail;
+        std::vector<trail<int>> _old_max_women_trail;
+        //Host pointers
+        int *_xpl, *_ypl;
+        int *_xPy, *_yPx;
+        int *_stack_mod_men, *_stack_mod_women, *_stack_mod_min_men;
+        int *_old_min_men, *_old_max_men, *_old_min_women, *_old_max_women;
+        int *_max_men, *_min_women, *_max_women;
+        int *_length_min_men_stack, *_new_length_min_men_stack;
+        //Device pointers
+        uint32_t *_d_x_domain, *_d_y_domain;
+        int *_d_xpl, *_d_ypl;
+        int *_d_xPy, *_d_yPx;
+        int *_d_stack_mod_men, *_d_stack_mod_women, *_d_stack_mod_min_men;
+        int *_d_old_min_men, *_d_old_max_men, *_d_old_min_women, *_d_old_max_women;
+        int *_d_max_men, *_d_min_women, *_d_max_women;
+        int *_d_length_min_men_stack, *_d_new_length_min_men_stack;
+        int *_d_new_stack_mod_min_men, *_d_array_min_mod_men;
+
 
     // Constraint methods
     public:
