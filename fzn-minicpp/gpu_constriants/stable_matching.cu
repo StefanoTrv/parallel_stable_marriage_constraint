@@ -5,6 +5,7 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     Constraint(m[0]->getSolver()), _x(m), _y(w), _xpl_vector(mpl), _ypl_vector(wpl)
 {
     setPriority(CLOW);
+    cudaStreamCreate(&_stream);
 
     // Get the size of the problem instance
     _n = static_cast<int>(_x.size());
@@ -15,7 +16,6 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     //MISSING TRANSFER TODO
 
     //Host memory allocation
-    int length_men_stack, length_women_stack;
     _xpl = (int *)malloc((_n * _n * 4 + _n * 10 + 2) * sizeof(int));
     _ypl = _xpl + (_n* _n);
     _xPy = _ypl + (_n* _n);
@@ -52,12 +52,8 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     _d_new_length_min_men_stack = _d_length_min_men_stack + 1;
     _d_new_stack_mod_min_men = _d_new_length_min_men_stack + 1;
     _d_array_min_mod_men = _d_new_stack_mod_min_men + _n;
-
-    //Prepares all the data structures
-    buildReverseMatrix(_xpl_vector,_xPy);
-    buildReverseMatrix(_ypl_vector,_yPx);
     
-    //Initialize ylb, yub, xlb and xub
+    //Initialize trailable vectors
     for (int i = 0; i < 10; i  += 1){
         _old_max_women_trail.push_back(trail<int>(m[0]->getSolver()->getStateManager(), _n-1));
         _old_min_women_trail.push_back(trail<int>(m[0]->getSolver()->getStateManager(), 0));
@@ -65,17 +61,52 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
         _old_min_men_trail.push_back(trail<int>(m[0]->getSolver()->getStateManager(), 0));
     }
 
-    //TODO
+    //Prepares the data structures that won't be modified by post()
+    copyPreferenceMatrix(_xpl_vector,_xpl);
+    copyPreferenceMatrix(_ypl_vector,_ypl);
+    buildReverseMatrix(_xpl_vector,_xPy);
+    buildReverseMatrix(_ypl_vector,_yPx);
+    *_length_min_men_stack = 0; //for f1 we pretend that it's empty, then we fill it before f2
+    *_new_length_min_men_stack = 0; //TODO forse spostare
+    for (int i=0;i<_n;i++){
+        _stack_mod_men[i]=i;
+        _stack_mod_women[i]=i;
+    }
+    for(int i=0;i<_n;i++){
+        _old_min_men[i]=0;
+        _old_min_women[i]=0;
+        _old_max_men[i]=_n-1;
+        _old_max_women[i]=_n-1;
+    }
+
+    //Get number of SMPs in the device
+    int device;
+    cudaGetDevice(&device);
+    struct cudaDeviceProp props;
+    cudaGetDeviceProperties(&props, device);
+    _n_SMP = props.multiProcessorCount;
 }
 
 void StableMatchingGPU::post(){
-    for (auto const & v : _x)
-    {
-        v->propagateOnDomainChange(this);
+    int _length_men_stack, _length_women_stack;
+    _length_men_stack = _n;
+    _length_women_stack = _n;
+
+    //Finds current maxes and mins
+    for(int i=0; i<_n; i++){
+        _min_women[i]=_y[i]->min();
+        _max_men[i]=_x[i]->max();
+        _max_women[i]=_y[i]->max();
     }
 
-    for (auto const & v : _y)
-    {
+    //Copy into device memory
+    HANDLE_ERROR(cudaMemcpyAsync(_d_xpl, _xpl, (_n * _n * 4 + _n * 10 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
+    
+
+    for (auto const & v : _x){
+        v->propagateOnDomainChange(this);
+    }
+    for (auto const & v : _y){
         v->propagateOnDomainChange(this);
     }
 
@@ -90,6 +121,14 @@ void StableMatchingGPU::buildReverseMatrix(std::vector<std::vector<int>> zpl, in
     for(int i=0;i<_n;i++){
         for(int j=0;j<_n;j++){
             zPz[i*_n+zpl[i][j]]=j;
+        }
+    }
+}
+
+void StableMatchingGPU::copyPreferenceMatrix(std::vector<std::vector<int>> zpl_vec, int *zpl){
+    for(int i=0;i<_n;i++){
+        for(int j=0;j<_n;j++){
+            zpl[i*_n+j]=zpl_vec[i][j];
         }
     }
 }

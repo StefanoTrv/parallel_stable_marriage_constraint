@@ -16,6 +16,8 @@ class StableMatchingGPU : public Constraint
         std::vector<trail<int>> _old_max_men_trail;
         std::vector<trail<int>> _old_min_women_trail;
         std::vector<trail<int>> _old_max_women_trail;
+        cudaStream_t _stream;
+        int _n_SMP;
         //Host pointers
         int *_xpl, *_ypl;
         int *_xPy, *_yPx;
@@ -42,6 +44,7 @@ class StableMatchingGPU : public Constraint
     
     protected:
         void buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz);
+        void copyPreferenceMatrix(std::vector<std::vector<int>> zpl, int *zPz);
 };
 
 
