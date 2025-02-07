@@ -54,6 +54,7 @@ public:
     bool memberBase(int v) const noexcept { return GETBIT(v);}
     int getIthVal(int index) const;
     void dump(int min, int max, unsigned int * dump) const;
+    void dumpWithOffset(int min, int max, unsigned int * dump,int offset) const;
 
     void assign(int v,IntNotifier& x);
     void remove(int v,IntNotifier& x);

@@ -27,6 +27,7 @@ public:
    virtual bool contains(int v) const = 0;
    virtual bool containsBase(int v) const { return contains(v);}
    virtual void dump(int min, int max, unsigned int * dump) const {throw std::runtime_error("Unsupported opration");};
+   virtual void dumpWithOffset(int min, int max,unsigned int* dump, int offset) const {throw std::runtime_error("Unsupported opration");};
    virtual int getIthVal(int index) const { throw std::runtime_error("Unsupported opration");};
    virtual void assign(int v) = 0;
    virtual void remove(int v) = 0;
