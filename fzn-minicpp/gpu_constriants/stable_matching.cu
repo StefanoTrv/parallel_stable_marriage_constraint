@@ -55,7 +55,6 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     _d_y_domain = _d_x_domain + (_n * _n) / 32 + (_n % 32 != 0);
 
     //Host memory allocation
-    _domain_buffer = (uint32_t *)malloc((_n / 32 + (_n % 32 != 0) + 1) * sizeof(uint32_t));
     _x_domain = (uint32_t *)calloc(((_n * _n) / 32 + (_n % 32 != 0)) * 2, sizeof(uint32_t)); // calloc() because shortened domains may mean some bits are not written
     _y_domain = _x_domain + ((_n * _n) / 32 + (_n % 32 != 0));
     _xpl = (int *)malloc((_n * _n * 4 + _n * 10 + 2) * sizeof(int));
@@ -185,18 +184,16 @@ void StableMatchingGPU::copyPreferenceMatrix(std::vector<std::vector<int>> zpl_v
 }
 
 void StableMatchingGPU::dumpDomainsToBitset(bool first_dump, std::vector<var<int>::Ptr> vars, uint32_t* dom, int* old_mins, int* old_maxes){
-    int starting_bit, words, starting_word;
+    int starting_bit;
     int var_min, var_max;
-    uint32_t mask;
     for(int i=0; i<_n; i++){
-        // TODO: see if I should check the variables and mask the ends of words, or override the ends of words and dump all everytime
-        //if(!(vars[i]->changed()) && !first_dump){
-        //    continue;
-        //}
+        if(!(vars[i]->changed()) && !first_dump){
+            continue;
+        }
 
         /*
             During the first execution we use the current maxes and min, since variable domains may be shortened (not [0,n-1]).
-            Since we initialized the rest of the domains to 0s, we can ignore that part of the domains.
+            Since we initialized the rest of the domains to 0s, we can ignore the part of the domains outside these initial bounds.
         */
         if(first_dump){
             var_min = vars[i]->min();
@@ -208,17 +205,6 @@ void StableMatchingGPU::dumpDomainsToBitset(bool first_dump, std::vector<var<int
 
         starting_bit = _n * i + var_min;
 
-        vars[i]->dumpWithOffset(var_min,var_max,_domain_buffer,starting_bit % 32);
-
-        words = (var_max - var_min + 1) / 32 + ((var_max - var_min + 1) % 32 > 0); //number of words to be copied from buffer
-        
-        starting_word = starting_bit / 32;
-        mask = dom[starting_word] >> (32 - (starting_bit % 32)) << (32 - (starting_bit % 32)); //domain area to be preserved
-
-        dom[starting_word] = _domain_buffer[0] | mask;
-
-        for(int j=1;j<words;j++){
-            dom[j]=_domain_buffer[j];
-        }
+        vars[i]->dumpWithOffset(var_min,var_max,dom + (starting_bit / 32),starting_bit % 32);
     }
 }
