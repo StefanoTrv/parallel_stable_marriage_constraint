@@ -19,6 +19,7 @@ class StableMatchingGPU : public Constraint
         cudaStream_t _stream;
         int _n_SMP;
         //Host pointers
+        uint32_t *_x_domain, *_y_domain;
         int *_xpl, *_ypl;
         int *_xPy, *_yPx;
         int *_stack_mod_men, *_stack_mod_women, *_stack_mod_min_men;
@@ -34,6 +35,8 @@ class StableMatchingGPU : public Constraint
         int *_d_max_men, *_d_min_women, *_d_max_women;
         int *_d_length_min_men_stack, *_d_new_length_min_men_stack;
         int *_d_new_stack_mod_min_men, *_d_array_min_mod_men;
+        //Utils
+        uint32_t *_domain_buffer;
 
 
     // Constraint methods
@@ -45,6 +48,7 @@ class StableMatchingGPU : public Constraint
     protected:
         void buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz);
         void copyPreferenceMatrix(std::vector<std::vector<int>> zpl, int *zPz);
+        void dumpDomainsToBitset(bool first_dump, std::vector<var<int>::Ptr> vars, uint32_t* dom, int* old_mins, int* old_maxes);
 };
 
 
