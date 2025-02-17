@@ -7,7 +7,7 @@ const uint32_t UNS_ONE = 1;
 
 int getBit(uint32_t* bitmap, int index){
     int offset = index % 32;
-    return (bitmap[index/32] << offset) >> (sizeof (int)*8 - 1);
+    return (bitmap[index/32] << offset) >> (sizeof (uint32_t)*8 - 1);
 }
 
 int getDomainBit(uint32_t* bitmap, int row, int column, int n){
@@ -16,13 +16,13 @@ int getDomainBit(uint32_t* bitmap, int row, int column, int n){
 
 void setBit(uint32_t* bitmap, int index, int val){
     int offset = index % 32;
-    if ((bitmap[index/32] << offset) >> (sizeof (int)*8 - 1) != val){
+    if ((bitmap[index/32] << offset) >> (sizeof (uint32_t)*8 - 1) != val){
         if (val==0){
             //bitwise and not
-            bitmap[index/32] = bitmap[index/32] & ~((UNS_ONE<< (sizeof (int)*8 - 1)) >> offset);
+            bitmap[index/32] = bitmap[index/32] & ~((UNS_ONE<< (sizeof (uint32_t)*8 - 1)) >> offset);
         }else{
             //bitwise or
-            bitmap[index/32] = bitmap[index/32] | ((UNS_ONE<< (sizeof (int)*8 - 1)) >> offset);
+            bitmap[index/32] = bitmap[index/32] | ((UNS_ONE<< (sizeof (uint32_t)*8 - 1)) >> offset);
         }
     }
 }

@@ -22,7 +22,7 @@ I vettori relativi ai vecchi minimi (old_min_men e old_min_women) sono inizializ
 
 INIZIALIZZAZIONE ALL'INIZIO DI OGNI SUCCESSIVA PROPAGAZIONE:
 Quando il propagatore per questo vincolo deve essere chiamato, l'host inserisce gli indici delle variabili che sono state modificate (il numero dell'uomo o della donna) nelle prime posizioni libere di stack_mod_men e stack_mod_women, e length_men_stack e length_women_stack vengono incrementati opportunamente.
-Sempre prima della chiamata del propagatore, l'host inserisce gli indici degli uomini il cui minimo è stato modificato all'inizio di stack_mod_min_men e length_min_men_stack è incrementato opportunamente. (Nel caso simmetrico, viene fatto lo stesso con le strutture dati relative alle donne.) Nel caso della prima chiamata al vincolo, valgono invece i valori a cui sono state inizializzate le strutture dati.
+Sempre prima della chiamata del propagatore, l'host inserisce gli indici degli uomini il cui minimo è stato modificato all'inizio di stack_mod_min_men e length_min_men_stack è incrementato opportunamente. (Nel caso simmetrico, viene fatto lo stesso con le strutture dati relative alle donne.)
 
 
  █████  ██       ██████   ██████  ██████  ██ ████████ ███    ███  ██████     

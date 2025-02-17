@@ -95,7 +95,7 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     _d_array_min_mod_men = _d_new_stack_mod_min_men + _n;
     
     //Initialize trailable vectors
-    for (int i = 0; i < 10; i  += 1){
+    for (int i = 0; i < 10; i++){
         _old_max_women_trail.push_back(trail<int>(m[0]->getSolver()->getStateManager(), _n-1));
         _old_min_women_trail.push_back(trail<int>(m[0]->getSolver()->getStateManager(), 0));
         _old_max_men_trail.push_back(trail<int>(m[0]->getSolver()->getStateManager(), _n-1));
@@ -108,7 +108,7 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     buildReverseMatrix(_xpl_vector,_xPy);
     buildReverseMatrix(_ypl_vector,_yPx);
     *_length_min_men_stack = 0; //for f1 we pretend that it's empty, then we fill it before f2
-    *_new_length_min_men_stack = 0; //TODO forse spostare
+    *_new_length_min_men_stack = 0;
     for (int i=0;i<_n;i++){
         _stack_mod_men[i]=i;
         _stack_mod_women[i]=i;
@@ -158,13 +158,56 @@ void StableMatchingGPU::post(){
 
     HANDLE_ERROR(cudaMemcpyAsync(_d_x_domain, _x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyHostToDevice, _stream));
 
-    print_domains(_n,_x_domain,_y_domain);
+    //TODO call
 
-    //TODO call & update olds and vars
+    //Update data structures and variables
+    HANDLE_ERROR(cudaMemcpyAsync(_x_domain, _d_x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyDeviceToHost, _stream));
+    HANDLE_ERROR(cudaMemcpyAsync(_old_min_men, _d_old_min_men, sizeof(int) * _n * 4, cudaMemcpyDeviceToHost, _stream));
+    cudaStreamSynchronize(_stream);
+    updateHostData();
+
+    printf("Post completed\n");
+    print_domains(_n,_x_domain,_y_domain);
 }
 
 void StableMatchingGPU::propagate(){
-    //TODO
+    //Prepare data structures
+    int _length_men_stack, _length_women_stack;
+    _length_men_stack = 0;
+    _length_women_stack = 0;
+    *_length_min_men_stack = 0;
+    *_new_length_min_men_stack = 0;
+    for(int i=0;i<_n;i++){
+        _old_min_men[i]=_old_min_men_trail[i];
+        _old_min_women[i]=_old_min_women_trail[i];
+        _old_max_men[i]=_old_max_men_trail[i];
+        _old_max_women[i]=_old_max_women_trail[i];
+    }
+    for(int i=0; i<_n; i++){
+        if(_x[i]->changed()){
+            _stack_mod_men[_length_men_stack]=i;
+            _length_men_stack++;
+            if(_x[i]->changedMin()){
+                _stack_mod_men[*_length_min_men_stack]=i;
+                *_length_min_men_stack++;
+            }
+        }
+        if(_y[i]->changed()){
+            _stack_mod_women[_length_women_stack]=i;
+            _length_women_stack++;
+        }
+    }
+
+    //TODO kernel
+
+    //Update data structures and variables
+    HANDLE_ERROR(cudaMemcpyAsync(_x_domain, _d_x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyDeviceToHost, _stream));
+    HANDLE_ERROR(cudaMemcpyAsync(_old_min_men, _d_old_min_men, sizeof(int) * _n * 4, cudaMemcpyDeviceToHost, _stream));
+    cudaStreamSynchronize(_stream);
+    updateHostData();
+
+    printf("Propagation completed\n");
+    print_domains(_n,_x_domain,_y_domain);
 }
 
 void StableMatchingGPU::buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz){
@@ -187,12 +230,12 @@ void StableMatchingGPU::dumpDomainsToBitset(bool first_dump, std::vector<var<int
     int starting_bit;
     int var_min, var_max;
     for(int i=0; i<_n; i++){
-        if(!(vars[i]->changed()) && !first_dump){
+        if(!(vars[i]->changed()) && !first_dump){ //backtracked variables are marked as changed
             continue;
         }
 
         /*
-            During the first execution we use the current maxes and min, since variable domains may be shortened (not [0,n-1]).
+            During the first execution we use the current maxes and mins, since variable domains may have been shortened in their bitset representation (not [0,n-1]).
             Since we initialized the rest of the domains to 0s, we can ignore the part of the domains outside these initial bounds.
         */
         if(first_dump){
@@ -206,5 +249,43 @@ void StableMatchingGPU::dumpDomainsToBitset(bool first_dump, std::vector<var<int
         starting_bit = _n * i + var_min;
 
         vars[i]->dumpWithOffset(var_min,var_max,dom + (starting_bit / 32),starting_bit % 32);
+    }
+}
+
+int StableMatchingGPU::getBitHost(uint32_t* bitmap, int index){
+    int offset = index % 32;
+    return (bitmap[index/32] << offset) >> (sizeof (uint32_t)*8 - 1);
+}
+
+int StableMatchingGPU::getDomainBitHost(uint32_t* bitmap, int row, int column){
+    return getBitHost(bitmap,row*_n+column);
+}
+
+// Updates the _olds trailable vectors and the variables with the data from the device
+// Supposes that the copy from the device has already been completed
+void StableMatchingGPU::updateHostData(){
+    for (int i = 0; i < 10; i++){ //_olds
+        _old_max_women_trail[i]=_old_max_women[i];
+        _old_min_women_trail[i]=_old_min_women[i];
+        _old_max_men_trail[i]=_old_max_men[i];
+        _old_min_men_trail[i]=_old_min_men[i];
+    }
+    
+    for (int i=0; i<_n; i++){ //_x and _y
+        _x[i]->removeBelow(_old_min_men[i]);
+        _x[i]->removeAbove(_old_max_men[i]);
+        for(int j=_old_min_men[i]+1; j<_old_max_men[i]; j++){
+            if(!getDomainBitHost(_x_domain,i,j)){
+                _x[i]->remove(j);
+            }
+        }
+
+        _y[i]->removeBelow(_old_min_women[i]);
+        _y[i]->removeAbove(_old_max_women[i]);
+        for(int j=_old_min_women[i]+1; j<_old_max_women[i]; j++){
+            if(!getDomainBitHost(_y_domain,i,j)){
+                _y[i]->remove(j);
+            }
+        }
     }
 }
