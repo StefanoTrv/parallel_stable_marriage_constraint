@@ -146,6 +146,7 @@ void StableMatchingGPU::post(){
     //Copies the remaining data structures
     HANDLE_ERROR(cudaMemcpyAsync(_d_max_men, _max_men, (_n * 3 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
 
+    //Set propagation condition for variables
     for (auto const & v : _x){
         v->propagateOnDomainChange(this);
     }
@@ -153,9 +154,9 @@ void StableMatchingGPU::post(){
         v->propagateOnDomainChange(this);
     }
 
+    //Copy the domains
     dumpDomainsToBitset(true, _x, _x_domain, _old_min_men, _old_max_men);
     dumpDomainsToBitset(true, _y, _y_domain, _old_min_women, _old_max_women);
-
     HANDLE_ERROR(cudaMemcpyAsync(_d_x_domain, _x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyHostToDevice, _stream));
 
     //TODO call
@@ -182,6 +183,7 @@ void StableMatchingGPU::propagate(){
         _old_min_women[i]=_old_min_women_trail[i];
         _old_max_men[i]=_old_max_men_trail[i];
         _old_max_women[i]=_old_max_women_trail[i];
+        //printf("Old min men of %i is %i\n",i,_old_min_men[i]);
     }
     for(int i=0; i<_n; i++){
         if(_x[i]->changed()){
@@ -197,6 +199,12 @@ void StableMatchingGPU::propagate(){
             _length_women_stack++;
         }
     }
+    dumpDomainsToBitset(false, _x, _x_domain, _old_min_men, _old_max_men);
+    dumpDomainsToBitset(false, _y, _y_domain, _old_min_women, _old_max_women);
+
+    HANDLE_ERROR(cudaMemcpyAsync(_d_x_domain, _x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyHostToDevice, _stream));
+    HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_men, _stack_mod_men, (_n * 10 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
+
 
     //TODO kernel
 
@@ -230,9 +238,15 @@ void StableMatchingGPU::dumpDomainsToBitset(bool first_dump, std::vector<var<int
     int starting_bit;
     int var_min, var_max;
     for(int i=0; i<_n; i++){
+        /*printf("min of var %i is %i\n",i,vars[i]->min());
+        if(vars[i]->isBound()){
+            printf("Variable %i is bound.\n",i);
+        }*/
         if(!(vars[i]->changed()) && !first_dump){ //backtracked variables are marked as changed
+            //printf("Skipping variable %i\n",i);
             continue;
         }
+        //printf("Updating variable %i\n",i);
 
         /*
             During the first execution we use the current maxes and mins, since variable domains may have been shortened in their bitset representation (not [0,n-1]).
@@ -265,6 +279,7 @@ int StableMatchingGPU::getDomainBitHost(uint32_t* bitmap, int row, int column){
 // Supposes that the copy from the device has already been completed
 void StableMatchingGPU::updateHostData(){
     for (int i = 0; i < 10; i++){ //_olds
+        //printf("new old min men for man %i is %i",i,_old_min_men[i]);
         _old_max_women_trail[i]=_old_max_women[i];
         _old_min_women_trail[i]=_old_min_women[i];
         _old_max_men_trail[i]=_old_max_men[i];
