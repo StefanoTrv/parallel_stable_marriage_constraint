@@ -21,7 +21,7 @@ StableMatching::StableMatching(std::vector<var<int>::Ptr> & m, std::vector<var<i
     buildReverseMatrix(_ypl,_yPx);
 
     //Initialize ylb, yub, xlb and xub
-    for (int i = 0; i < 10; i  += 1)
+    for (int i=0; i<_n; i++)
     {
         _yub.push_back(trail<int>(m[0]->getSolver()->getStateManager(), _n-1));
         _ylb.push_back(trail<int>(m[0]->getSolver()->getStateManager(), 0));

@@ -49,6 +49,7 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
 
     // Get the size of the problem instance
     _n = static_cast<int>(_x.size());
+    printf("_n is %i\n",_n);
 
     //Domain device memory allocation
     HANDLE_ERROR(cudaMalloc((void**)&_d_x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t)));
@@ -95,7 +96,7 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     _d_array_min_mod_men = _d_new_stack_mod_min_men + _n;
     
     //Initialize trailable vectors
-    for (int i = 0; i < 10; i++){
+    for (int i = 0; i < _n; i++){
         _old_max_women_trail.push_back(trail<int>(m[0]->getSolver()->getStateManager(), _n-1));
         _old_min_women_trail.push_back(trail<int>(m[0]->getSolver()->getStateManager(), 0));
         _old_max_men_trail.push_back(trail<int>(m[0]->getSolver()->getStateManager(), _n-1));
@@ -172,6 +173,8 @@ void StableMatchingGPU::post(){
 }
 
 void StableMatchingGPU::propagate(){
+
+    printf("Starting propagation\n");
     //Prepare data structures
     int _length_men_stack, _length_women_stack;
     _length_men_stack = 0;
@@ -183,15 +186,15 @@ void StableMatchingGPU::propagate(){
         _old_min_women[i]=_old_min_women_trail[i];
         _old_max_men[i]=_old_max_men_trail[i];
         _old_max_women[i]=_old_max_women_trail[i];
-        //printf("Old min men of %i is %i\n",i,_old_min_men[i]);
+        printf("Old min men of %i is %i\n",i,_old_min_men[i]);
     }
     for(int i=0; i<_n; i++){
         if(_x[i]->changed()){
             _stack_mod_men[_length_men_stack]=i;
             _length_men_stack++;
             if(_x[i]->changedMin()){
-                _stack_mod_men[*_length_min_men_stack]=i;
-                *_length_min_men_stack++;
+                _stack_mod_min_men[*_length_min_men_stack]=i;
+                (*_length_min_men_stack)++;
             }
         }
         if(_y[i]->changed()){
@@ -199,7 +202,10 @@ void StableMatchingGPU::propagate(){
             _length_women_stack++;
         }
     }
+    printf("Starting dump\n");
+    printf("Dumping men\n");
     dumpDomainsToBitset(false, _x, _x_domain, _old_min_men, _old_max_men);
+    printf("Dumping women\n");
     dumpDomainsToBitset(false, _y, _y_domain, _old_min_women, _old_max_women);
 
     HANDLE_ERROR(cudaMemcpyAsync(_d_x_domain, _x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyHostToDevice, _stream));
@@ -235,18 +241,21 @@ void StableMatchingGPU::copyPreferenceMatrix(std::vector<std::vector<int>> zpl_v
 }
 
 void StableMatchingGPU::dumpDomainsToBitset(bool first_dump, std::vector<var<int>::Ptr> vars, uint32_t* dom, int* old_mins, int* old_maxes){
-    int starting_bit;
+    int starting_bit,ending_bit;
+    int starting_word, ending_word;
     int var_min, var_max;
+    uint32_t mask;
     for(int i=0; i<_n; i++){
-        /*printf("min of var %i is %i\n",i,vars[i]->min());
+        printf("min of var %i is %i, ",i,vars[i]->min());
+        printf("max of var %i is %i\n",i,vars[i]->max());
         if(vars[i]->isBound()){
             printf("Variable %i is bound.\n",i);
-        }*/
+        }
         if(!(vars[i]->changed()) && !first_dump){ //backtracked variables are marked as changed
-            //printf("Skipping variable %i\n",i);
+            printf("Skipping variable %i\n",i);
             continue;
         }
-        //printf("Updating variable %i\n",i);
+        printf("Updating variable %i\n",i);
 
         /*
             During the first execution we use the current maxes and mins, since variable domains may have been shortened in their bitset representation (not [0,n-1]).
@@ -259,10 +268,41 @@ void StableMatchingGPU::dumpDomainsToBitset(bool first_dump, std::vector<var<int
             var_min = old_mins[i];
             var_max = old_maxes[i];
         }
+        printf("var min is %i and var max is %i\n",var_min,var_max);
 
         starting_bit = _n * i + var_min;
+        starting_word = starting_bit/32;
+        ending_bit = _n * i +var_max;
+        ending_word = ending_bit/32;
+        printf("starting word %i ending word %i \n",starting_word,ending_word);
+        printf("starting bit %i ending bit %i \n",starting_bit,ending_bit);  
 
-        vars[i]->dumpWithOffset(var_min,var_max,dom + (starting_bit / 32),starting_bit % 32);
+        if (starting_word == ending_word) {
+            // Clear bits within a single word
+            mask = 0xFFFFFFFF >> ((31 - ending_bit) % 32) << ((31 - ending_bit) + starting_bit) % 32 >> (starting_bit % 32);
+            printf("The mask is %i\n",mask);
+            dom[starting_word] &= ~mask;
+        } else {
+            // Clear bits in the first word
+            mask = 0xFFFFFFFF << (starting_bit % 32) >> (starting_bit % 32);
+            printf("The mask for the first word is %i\n",mask);
+            printf("dom before applying the mask %i\n",dom[starting_word]);
+            dom[starting_word] &= ~mask;
+            printf("dom after applying the mask %i\n",dom[starting_word]);
+        
+            // Clear full words in between
+            for (int w = starting_word + 1; w < ending_word; w++) {
+                dom[w] = 0;
+            }
+        
+            // Clear bits in the last word
+            mask = 0xFFFFFFFF >> ((31 - ending_bit) % 32) << (31 - ending_bit) % 32;
+            printf("The mask for the last word is %i\n",mask);
+            dom[ending_word] &= ~mask;
+        }
+        starting_bit = _n * i + vars[i]->min();
+        vars[i]->dumpWithOffset(vars[i]->min(),vars[i]->max(),dom + (starting_bit / 32),starting_bit % 32);
+        print_domains(_n,_x_domain,_y_domain);
     }
 }
 
@@ -278,14 +318,27 @@ int StableMatchingGPU::getDomainBitHost(uint32_t* bitmap, int row, int column){
 // Updates the _olds trailable vectors and the variables with the data from the device
 // Supposes that the copy from the device has already been completed
 void StableMatchingGPU::updateHostData(){
-    for (int i = 0; i < 10; i++){ //_olds
-        //printf("new old min men for man %i is %i",i,_old_min_men[i]);
-        _old_max_women_trail[i]=_old_max_women[i];
+    for (int i = 0; i < _n; i++){ //_olds
+        /*_old_max_women_trail[i]=_old_max_women[i];
         _old_min_women_trail[i]=_old_min_women[i];
         _old_max_men_trail[i]=_old_max_men[i];
-        _old_min_men_trail[i]=_old_min_men[i];
+        _old_min_men_trail[i]=_old_min_men[i];*/
+
+        //TODO REMOVE
+        _old_max_women_trail[i]=_y[i]->max();
+        _old_min_women_trail[i]=_y[i]->min();
+        _old_max_men_trail[i]=_x[i]->max();
+        _old_min_men_trail[i]=_x[i]->min();
+
+        _old_max_women[i]=_y[i]->max();
+        _old_min_women[i]=_y[i]->min();
+        _old_max_men[i]=_x[i]->max();
+        _old_min_men[i]=_x[i]->min();
+        //TODO REMOVE
+        printf("new old min men for man %i is %i\n",i,_old_min_men[i]);
+        printf("new old max men for man %i is %i\n",i,_old_max_men[i]);
     }
-    
+
     for (int i=0; i<_n; i++){ //_x and _y
         _x[i]->removeBelow(_old_min_men[i]);
         _x[i]->removeAbove(_old_max_men[i]);
