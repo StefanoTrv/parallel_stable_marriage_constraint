@@ -7,7 +7,7 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
 __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* max_men, int* max_women);
 __global__ void finalize_changes(int n, uint32_t* x_domain, uint32_t* y_domain, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women);
 
-void print_domains(int n, uint32_t* x_dom, uint32_t* y_dom) {
+/*void print_domains(int n, uint32_t* x_dom, uint32_t* y_dom) {
     int index, offset;
     // Men
     printf("\nMen domains:\n");
@@ -44,7 +44,7 @@ void print_domains(int n, uint32_t* x_dom, uint32_t* y_dom) {
     }
             
     printf("\n\n");
-}
+}*/
 
 StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector<var<int>::Ptr> & w, std::vector<std::vector<int>> const & mpl, std::vector<std::vector<int>> const & wpl) :
     Constraint(m[0]->getSolver()), _x(m), _y(w), _xpl_vector(mpl), _ypl_vector(wpl)
@@ -54,7 +54,6 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
 
     // Get the size of the problem instance
     _n = static_cast<int>(_x.size());
-    printf("_n is %i\n",_n);
 
     //Domain device memory allocation
     HANDLE_ERROR(cudaMalloc((void**)&_d_x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t)));
@@ -203,14 +202,9 @@ void StableMatchingGPU::post(){
     HANDLE_ERROR(cudaMemcpyAsync(_old_min_men, _d_old_min_men, sizeof(int) * _n * 4, cudaMemcpyDeviceToHost, _stream));
     cudaStreamSynchronize(_stream);
     updateHostData();
-
-    printf("Post completed\n");
-    print_domains(_n,_x_domain,_y_domain);
 }
 
 void StableMatchingGPU::propagate(){
-    printf("Starting propagation\n");
-
     //Prepare other data structures
     int _length_men_stack, _length_women_stack;
     _length_men_stack = 0;
@@ -222,7 +216,6 @@ void StableMatchingGPU::propagate(){
         _old_min_women[i]=_old_min_women_trail[i];
         _old_max_men[i]=_old_max_men_trail[i];
         _old_max_women[i]=_old_max_women_trail[i];
-        printf("Old min men of %i is %i\n",i,_old_min_men[i]);
     }
     for(int i=0; i<_n; i++){
         if(_x[i]->changed()){
@@ -240,22 +233,8 @@ void StableMatchingGPU::propagate(){
     }
     HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_men, _stack_mod_men, (_n * 10 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
 
-    //DEBUG
-    printf("Men's vectors:\n");
-    for(int i=0;i<_n;i++){
-        printf("var %i: old_min %i old_max %i\n",i,_old_min_men[i],_old_max_men[i]);
-    }
-    printf("Women's vectors:\n");
-    for(int i=0;i<_n;i++){
-        printf("var %i: old_min %i old_max %i\n",i,_old_min_women[i],_old_max_women[i]);
-    }
-    //DEBUG
-
     //Copy domains to device
-    printf("Starting dump\n");
-    printf("Dumping men\n");
     dumpDomainsToBitset(false, _x, _x_domain, _old_min_men, _old_max_men);
-    printf("Dumping women\n");
     dumpDomainsToBitset(false, _y, _y_domain, _old_min_women, _old_max_women);
     HANDLE_ERROR(cudaMemcpyAsync(_d_x_domain, _x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyHostToDevice, _stream));
 
@@ -293,9 +272,6 @@ void StableMatchingGPU::propagate(){
     HANDLE_ERROR(cudaMemcpyAsync(_old_min_men, _d_old_min_men, sizeof(int) * _n * 4, cudaMemcpyDeviceToHost, _stream));
     cudaStreamSynchronize(_stream);
     updateHostData();
-
-    printf("Propagation completed\n");
-    print_domains(_n,_x_domain,_y_domain);
 }
 
 void StableMatchingGPU::buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz){
@@ -320,17 +296,11 @@ void StableMatchingGPU::dumpDomainsToBitset(bool first_dump, std::vector<var<int
     int var_min, var_max;
     uint32_t mask;
     for(int i=0; i<_n; i++){
-        printf("min of var %i is %i, ",i,vars[i]->min());
-        printf("max of var %i is %i\n",i,vars[i]->max());
-        if(vars[i]->isBound()){
-            printf("Variable %i is bound.\n",i);
-        }
         //Following code is commented: bitset modified before backtracking may not be updated
         /*if(!(vars[i]->changed()) && !first_dump){ //backtracked variables are marked as changed
-            printf("Skipping variable %i\n",i);
+            //printf("Skipping variable %i\n",i);
             continue;
         }*/
-        printf("Updating variable %i\n",i);
 
         /*
             During the first execution we use the current maxes and mins, since variable domains may have been shortened in their bitset representation (not [0,n-1]).
@@ -343,27 +313,20 @@ void StableMatchingGPU::dumpDomainsToBitset(bool first_dump, std::vector<var<int
             var_min = old_mins[i];
             var_max = old_maxes[i];
         }
-        printf("var min is %i and var max is %i\n",var_min,var_max);
 
         starting_bit = _n * i + var_min;
         starting_word = starting_bit/32;
         ending_bit = _n * i +var_max;
-        ending_word = ending_bit/32;
-        printf("starting word %i ending word %i \n",starting_word,ending_word);
-        printf("starting bit %i ending bit %i \n",starting_bit,ending_bit);  
+        ending_word = ending_bit/32; 
 
         if (starting_word == ending_word) {
             // Clear bits within a single word
             mask = 0xFFFFFFFF >> ((31 - ending_bit) % 32) << ((31 - ending_bit) + starting_bit) % 32 >> (starting_bit % 32);
-            printf("The mask is %i\n",mask);
             dom[starting_word] &= ~mask;
         } else {
             // Clear bits in the first word
             mask = 0xFFFFFFFF << (starting_bit % 32) >> (starting_bit % 32);
-            printf("The mask for the first word is %i\n",mask);
-            printf("dom before applying the mask %i\n",dom[starting_word]);
             dom[starting_word] &= ~mask;
-            printf("dom after applying the mask %i\n",dom[starting_word]);
         
             // Clear full words in between
             for (int w = starting_word + 1; w < ending_word; w++) {
@@ -372,12 +335,10 @@ void StableMatchingGPU::dumpDomainsToBitset(bool first_dump, std::vector<var<int
         
             // Clear bits in the last word
             mask = 0xFFFFFFFF >> ((31 - ending_bit) % 32) << (31 - ending_bit) % 32;
-            printf("The mask for the last word is %i\n",mask);
             dom[ending_word] &= ~mask;
         }
         starting_bit = _n * i + vars[i]->min();
         vars[i]->dumpWithOffset(vars[i]->min(),vars[i]->max(),dom + (starting_bit / 32),starting_bit % 32);
-        print_domains(_n,_x_domain,_y_domain);
     }
 }
 
@@ -398,8 +359,6 @@ void StableMatchingGPU::updateHostData(){
         _old_min_women_trail[i]=_old_min_women[i];
         _old_max_men_trail[i]=_old_max_men[i];
         _old_min_men_trail[i]=_old_min_men[i];
-        printf("new old min men for man %i is %i\n",i,_old_min_men[i]);
-        printf("new old max men for man %i is %i\n",i,_old_max_men[i]);
     }
 
     for (int i=0; i<_n; i++){ //_x and _y
@@ -488,10 +447,8 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
     int id = threadIdx.x + blockIdx.x * blockDim.x;
     //closes redundant threads
     if (id>= length_men_stack + length_women_stack){
-        //printf("Returning %i\n",id);
         return;
     }
-    //printf("Continuing %i\n",id);
     //gets person associated with thread and picks the correct data structures
     int person, other_person, other_index, temp;
     int is_man = id < length_men_stack;
@@ -524,7 +481,6 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
                 delDomainBitCuda(other_domain,other_person,other_index,n);
                 if(!is_man && old_min_men[other_person]==other_index){//updates stack_mod_min_men if other_person is a man and the min was just removed
                     temp = atomicAdd(length_min_men_stack,1);
-                    //printf("Temp for thread %i is %i\n",id,temp);
                     stack_mod_min_men[temp]=other_person;
                 }
             }
@@ -540,11 +496,9 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
     if (id>= *length_min_men_stack){
         return;
     }
-    //printf("max_women[%i]=%i\n",id,max_women[id]);
 
     //finds man assigned to this thread
     int m = stack_mod_min_men[id];
-    //printf("m for thread %i is: %i\n",id,m);
 
     //the variables named *_val represent the value of some person in the domain of another specific person of the opposite sex
     int w_index, w;
@@ -556,76 +510,52 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
     while(1){
         //finds the first woman remaining in m's domain/list
         w_index = old_min_men[m];
-        //printf("w_index for man %i (thread %i): %i\n", m, id, w_index);
         if(w_index>max_men[m]){//empty domain
             old_min_men[m]=n;
-            //printf("EMPTY DOMAIN\n");
             return;
         }else if(getDomainBitCuda(x_domain,m,w_index,n)){//value in domain
-            //printf("new w_index for man %i (thread %i): %i\n", m, id, w_index);
             w = xpl[m*n+w_index];
 
             m_val = yPx[w*n+m];
 
             //atomic read-and-write of max_women[w]
             p_val = atomicMin(max_women+w, m_val);
-            //printf("New max for woman %i is %i (thread %i)\n",w,(p_val<m_val) ? p_val : m_val,id);
-            //printf("man %i is proposing to woman %i (with index %i) (thread %i)\n", m, w, p_val, id);
-            //printf("p_val for man %i (thread %i): %i\n", m, id, p_val);
-            //printf("m_val for man %i (thread %i): %i\n", m, id, m_val);
 
             if(m_val > p_val){//w prefers p to m
-                //printf("Deleting woman %i (with index %i) from domain of man %i (thread %i), because the woman declined.\n",w,w_index,m,id);
                 old_min_men[m]=w_index+1; //atomicMax could be used, but it would very rarely make a difference
-                //printf("New old_min_men for man %i is %i\n",m,w_index+1);
-                //printf("Caso1 for man %i (thread %i)\n", m, id);
                 //continue;//continues with the same m
             } else if(p_val==m_val){//w is already with m
-                //printf("Caso2 for man %i (thread %i): RETURNING\n", m, id);
-
                 return;//the thread has no free man to find a woman for
             } else {//m_val<p, that is w prefers m to p
                 succ_val = m_val + 1;
                 while(succ_val<=p_val){
                     succ = ypl[w*n+succ_val];
                     delDomainBitCuda(x_domain,succ,xPy[succ*n+w],n);
-                    //printf("Deleting woman %i (with index %i) from domain of man %i (thread %i), because the man is a successor of %i.\n",w,xPy[succ*n+w],succ,id,m);
                     succ_val++;
                 }
-                //printf("Caso3 for man %i (thread %i). New man: %i\n", m, id, ypl[w*n+p_val]);
                 m = ypl[w*n+p_val];
                 //continue;//continues with m:=p
             }
         }else{//value not in domain
             old_min_men[m]=w_index+1; //atomicMax could be used, but it would very rarely make a difference
-            //printf("New old_min_men for man %i is %i\n",m,w_index+1);
             w = xpl[m*n+w_index];
             m_val = yPx[w*n+m];
-            //printf("Woman %i (index %i) is not in the domain of man %i (thread %i)\n",w,w_index,m,id);
             //atomic read-and-write of max_women[w]
             p_val = atomicMin(max_women+w, m_val-1);
-            //printf("New max for woman %i is %i (thread %i)\n",w,((p_val<m_val-1) ? p_val : m_val-1),id);
             for(int i = m_val+1; i<=p_val; i++){//remove that woman from all the men that were removed from her domain (no need for m_val since the domains are coherent)
                 if(getDomainBitCuda(y_domain,w,i,n)){//value wasn't already removed
                     m_ith=  ypl[w*n+i];
                     w_val = xPy[m_ith*n+w];
                     delDomainBitCuda(x_domain,m_ith,w_val,n);
-                    //printf("Deleted woman %i (value %i) from domain of man %i, because of 0 value in man %i (thread %i).\n",w,w_val,m_ith,m_val,id);
                 }
             }
             if(p_val>m_val-1){//checks if the min of the last man has changed (the condition checks if the max of the woman changed)
-                //printf("Thread %i checking if man %i needs to be updated later.\n",id,m_ith);
                 m_ith=  ypl[w*n+p_val]; //necessary if a domain is empty
                 w_val = xPy[m_ith*n+w]; //necessary if a domain is empty
-                //printf("Value of p_val for thread %i is %i.\n",id,p_val);
-                //printf("Value of m_ith for thread %i is %i.\n",id,m_ith);
-                //printf("Value of w_val for thread %i is %i.\n",id,w_val);
 
                 //marks the man as needing to be updated
                 if(!atomicExch(&(array_min_mod_men[m_ith]),1)){ //atomic exchange to avoid duplicates (which could overflow the stack)
                     new_stack_mod_min_men[atomicAdd(new_length_min_men_stack,1)]=m_ith; //adds man to new stack
-                    //printf("Thread %i found that man %i needs to be updated later.\n",id,m_ith);
-                    //printf("Thread %i increased new_length_min_men_stack to %i for man %i\n",id,*new_length_min_men_stack,m_ith);
                 }
 
             }
@@ -643,8 +573,6 @@ __global__ void finalize_changes(int n, uint32_t* x_domain, uint32_t* y_domain, 
         return;
     }
 
-    //printf("max_women[%i] = %i\n",id,max_women[id]);
-
     //finalizes women's domains
     int domain_offset = n * id;
     int first_bit_index = max_women[id]+1 + domain_offset; //need to add offset to find the domain of current woman, not the first one
@@ -654,17 +582,14 @@ __global__ void finalize_changes(int n, uint32_t* x_domain, uint32_t* y_domain, 
     
     while(span>0){
         if(first_bit_index << (sizeof (int)*8 - 5) != 0 || span < 32){ //first_bit_index%32!=0, the last part of a word OR the first part of a word (beginning and/or end of area of interest)
-            //printf("Deleting part of word for woman %i\n",id);
             domain_index = first_bit_index>>5; //first_bit_index/32
             offset = first_bit_index%32; //offset of the first bit in the word
             leftover_bits_in_word = 32-offset; //the remaining bits from first_bit_index to the end of the word
             n_bits = leftover_bits_in_word<span ? leftover_bits_in_word : span; //how many bits to put in this word
-            //printf("Mask value for woman %i and n_bits %i and offset %i: %i\n",id,n_bits,offset,~((ALL_ONES<< (sizeof (int)*8 - n_bits)) >> offset));
             atomicAnd(&y_domain[domain_index],~((ALL_ONES<< (sizeof (int)*8 - n_bits)) >> offset)); //atomically deletes the appropriate bits of the word
             span-=n_bits; //marks some bits as added
             first_bit_index+=n_bits; //new index for the first bit that still hasn't been updated
         }else{//span>32, whole word can be written
-            //printf("Deleting whole word for woman %i\n",id);
             domain_index = first_bit_index>>5; //first_bit_index/32
             y_domain[domain_index]=0; //deletes whole word
             span-=32; //marks some bits as added
@@ -690,5 +615,4 @@ __global__ void finalize_changes(int n, uint32_t* x_domain, uint32_t* y_domain, 
         }
     }
     old_min_women[id]=new_m;
-
 }
