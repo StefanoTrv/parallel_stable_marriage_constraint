@@ -209,9 +209,9 @@ void StableMatchingGPU::post(){
 }
 
 void StableMatchingGPU::propagate(){
-
     printf("Starting propagation\n");
-    //Prepare data structures
+
+    //Prepare other data structures
     int _length_men_stack, _length_women_stack;
     _length_men_stack = 0;
     _length_women_stack = 0;
@@ -238,17 +238,55 @@ void StableMatchingGPU::propagate(){
             _length_women_stack++;
         }
     }
+    HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_men, _stack_mod_men, (_n * 10 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
+
+    //DEBUG
+    printf("Men's vectors:\n");
+    for(int i=0;i<_n;i++){
+        printf("var %i: old_min %i old_max %i\n",i,_old_min_men[i],_old_max_men[i]);
+    }
+    printf("Women's vectors:\n");
+    for(int i=0;i<_n;i++){
+        printf("var %i: old_min %i old_max %i\n",i,_old_min_women[i],_old_max_women[i]);
+    }
+    //DEBUG
+
+    //Copy domains to device
     printf("Starting dump\n");
     printf("Dumping men\n");
     dumpDomainsToBitset(false, _x, _x_domain, _old_min_men, _old_max_men);
     printf("Dumping women\n");
     dumpDomainsToBitset(false, _y, _y_domain, _old_min_women, _old_max_women);
-
     HANDLE_ERROR(cudaMemcpyAsync(_d_x_domain, _x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyHostToDevice, _stream));
-    HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_men, _stack_mod_men, (_n * 10 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
 
+    /*
+        Excute kernels
+    */
 
-    //TODO kernel
+    // Fun1
+    int n_threads = _length_men_stack + _length_women_stack;
+    int n_blocks, block_size;
+    getBlockNumberAndDimension(n_threads,&block_size,&n_blocks);
+    make_domains_coherent<<<n_blocks,block_size,0,_stream>>>(_n,_d_xpl,_d_ypl,_d_xPy,_d_yPx,_d_x_domain,_d_y_domain, _d_stack_mod_men, _d_stack_mod_women, _length_men_stack, _length_women_stack, _d_stack_mod_min_men, _d_length_min_men_stack, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women);
+
+    //Fun2
+    //  empties d_array_min_mod_men
+    HANDLE_ERROR(cudaMemsetAsync(_d_array_min_mod_men,0,sizeof(int)*_n, _stream));
+
+    // updates _length_min_men_stack
+    HANDLE_ERROR(cudaMemcpyAsync(_length_min_men_stack, _d_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, _stream));
+    cudaStreamSynchronize(_stream); // to be able to read _length_min_men_stack
+
+    iterateFun2();
+
+    //Fun3
+    n_threads = _n;
+    getBlockNumberAndDimension(n_threads,&block_size,&n_blocks);
+    finalize_changes<<<n_blocks,block_size,0,_stream>>>(_n,_d_x_domain,_d_y_domain, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women, _d_max_men, _d_min_women, _d_max_women);
+
+    /*
+        Completed kernel execution (not yet synchronized)
+    */
 
     //Update data structures and variables
     HANDLE_ERROR(cudaMemcpyAsync(_x_domain, _d_x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyDeviceToHost, _stream));
@@ -287,10 +325,11 @@ void StableMatchingGPU::dumpDomainsToBitset(bool first_dump, std::vector<var<int
         if(vars[i]->isBound()){
             printf("Variable %i is bound.\n",i);
         }
-        if(!(vars[i]->changed()) && !first_dump){ //backtracked variables are marked as changed
+        //Following code is commented: bitset modified before backtracking may not be updated
+        /*if(!(vars[i]->changed()) && !first_dump){ //backtracked variables are marked as changed
             printf("Skipping variable %i\n",i);
             continue;
-        }
+        }*/
         printf("Updating variable %i\n",i);
 
         /*
@@ -359,18 +398,6 @@ void StableMatchingGPU::updateHostData(){
         _old_min_women_trail[i]=_old_min_women[i];
         _old_max_men_trail[i]=_old_max_men[i];
         _old_min_men_trail[i]=_old_min_men[i];
-
-        //TODO REMOVE
-        //_old_max_women_trail[i]=_y[i]->max();
-        //_old_min_women_trail[i]=_y[i]->min();
-        //_old_max_men_trail[i]=_x[i]->max();
-        //_old_min_men_trail[i]=_x[i]->min();
-//
-        //_old_max_women[i]=_y[i]->max();
-        //_old_min_women[i]=_y[i]->min();
-        //_old_max_men[i]=_x[i]->max();
-        //_old_min_men[i]=_x[i]->min();
-        //TODO REMOVE
         printf("new old min men for man %i is %i\n",i,_old_min_men[i]);
         printf("new old max men for man %i is %i\n",i,_old_max_men[i]);
     }
