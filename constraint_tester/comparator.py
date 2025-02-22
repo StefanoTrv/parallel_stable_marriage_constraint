@@ -60,11 +60,11 @@ def write_input_files(n : int, full_domains : bool):
         serial_input.write("var 0.."+str(n-1)+": w"+str(i)+":: output_var;\n")
         parallel_input.write("var 0.."+str(n-1)+": w"+str(i)+":: output_var;\n")
     
-    var_list_string = ",".join(f"m{i}" for i in range(n))
+    var_list_string = ",".join(f"w{i}" for i in range(n))
     serial_input.write("array [1.."+str(n)+"] of var int: X_INTRODUCED_20_ ::var_is_introduced  = ["+var_list_string+"];\n")
     parallel_input.write("array [1.."+str(n)+"] of var int: X_INTRODUCED_20_ ::var_is_introduced  = ["+var_list_string+"];\n")
     
-    var_list_string = ",".join(f"w{i}" for i in range(n))
+    var_list_string = ",".join(f"m{i}" for i in range(n))
     serial_input.write("array [1.."+str(n)+"] of var int: X_INTRODUCED_21_ ::var_is_introduced  = ["+var_list_string+"];\n")
     parallel_input.write("array [1.."+str(n)+"] of var int: X_INTRODUCED_21_ ::var_is_introduced  = ["+var_list_string+"];\n")
 
