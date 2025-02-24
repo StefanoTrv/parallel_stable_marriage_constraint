@@ -151,14 +151,6 @@ void StableMatchingGPU::post(){
     //Copies the remaining data structures
     HANDLE_ERROR(cudaMemcpyAsync(_d_max_men, _max_men, (_n * 3 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
 
-    //Set propagation condition for variables
-    for (auto const & v : _x){
-        v->propagateOnDomainChange(this);
-    }
-    for (auto const & v : _y){
-        v->propagateOnDomainChange(this);
-    }
-
     //Copy the domains
     dumpDomainsToBitset(true, _x, _x_domain, _old_min_men, _old_max_men);
     dumpDomainsToBitset(true, _y, _y_domain, _old_min_women, _old_max_women);
@@ -202,6 +194,15 @@ void StableMatchingGPU::post(){
     HANDLE_ERROR(cudaMemcpyAsync(_old_min_men, _d_old_min_men, sizeof(int) * _n * 4, cudaMemcpyDeviceToHost, _stream));
     cudaStreamSynchronize(_stream);
     updateHostData();
+
+    //Set propagation condition for variables
+    //After first propagation to avoid useless propagate() call
+    for (auto const & v : _x){
+        v->propagateOnDomainChange(this);
+    }
+    for (auto const & v : _y){
+        v->propagateOnDomainChange(this);
+    }
 }
 
 void StableMatchingGPU::propagate(){

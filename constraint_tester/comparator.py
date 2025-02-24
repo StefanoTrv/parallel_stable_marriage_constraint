@@ -36,6 +36,7 @@ def write_input_files(n : int, full_domains : bool):
     serial_input.write("predicate minicpp_stable_matching(array [int] of var int: m,array [int] of var int: w,array [int] of int: pm,array [int] of int: pw);\n")
     parallel_input.write("predicate minicpp_stable_matching(array [int] of var int: m,array [int] of var int: w,array [int] of int: pm,array [int] of int: pw);\n")
 
+    #women's preference list
     serial_input.write("array [1.."+str(n*n)+"] of int: X_INTRODUCED_18_ = [")
     parallel_input.write("array [1.."+str(n*n)+"] of int: X_INTRODUCED_18_ = [")
     preference_table = random_preference_table(n)
@@ -44,6 +45,7 @@ def write_input_files(n : int, full_domains : bool):
     serial_input.write("];\n")
     parallel_input.write("];\n")
 
+    #men's preference list
     serial_input.write("array [1.."+str(n*n)+"] of int: X_INTRODUCED_19_ = [")
     parallel_input.write("array [1.."+str(n*n)+"] of int: X_INTRODUCED_19_ = [")
     preference_table = random_preference_table(n)
