@@ -31,6 +31,10 @@ StableMatching::StableMatching(std::vector<var<int>::Ptr> & m, std::vector<var<i
 }
 
 void StableMatching::post(){
+    init();
+
+    propagateOnQueue();
+    
     for (auto const & v : _x)
     {
         v->propagateOnDomainChange(this);
@@ -40,9 +44,6 @@ void StableMatching::post(){
     {
         v->propagateOnDomainChange(this);
     }
-    init();
-
-    propagateOnQueue();
 }
 
 void StableMatching::propagate(){

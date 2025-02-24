@@ -17,13 +17,21 @@ def main():
         serial_output = result_serial.stdout
         result_parallel = subprocess.run(["./fzn-minicpp", "parallel_input.fzn"], capture_output=True, text=True)
         parallel_output = result_parallel.stdout
+        error_string = result_serial.stderr
+        if error_string != "":
+            print("Execution of solver ended in error! Terminating...\nError details:\n"+error_string)
+            return
         if(serial_output != parallel_output):
             shutil.copyfile("serial_input.fzn", "out/error_"+str(errors)+"_serial.fzn")
             shutil.copyfile("parallel_input.fzn", "out/error_"+str(errors)+"_parallel.fzn")
             error_file = open("out/error_"+str(errors)+"_outputs.txt","w")
             error_file.write("Serial output:\n"+serial_output+"\n\nParallel output:\n"+parallel_output)
             errors += 1
-    
+        if errors >= 20:
+            print("Found 20 errors! Interrupting after "+str(i)+" tests.")
+            return
+        if i%25==0:
+            print("Completed test "+str(i)+" out of "+str(full_tests)+".")
     if errors == 0:
         print("Completed "+str(full_tests)+" tests without finding any error!")
     else:
@@ -62,19 +70,19 @@ def write_input_files(n : int, full_domains : bool):
         serial_input.write("var 0.."+str(n-1)+": w"+str(i)+":: output_var;\n")
         parallel_input.write("var 0.."+str(n-1)+": w"+str(i)+":: output_var;\n")
     
-    var_list_string = ",".join(f"w{i}" for i in range(n))
-    serial_input.write("array [1.."+str(n)+"] of var int: X_INTRODUCED_20_ ::var_is_introduced  = ["+var_list_string+"];\n")
-    parallel_input.write("array [1.."+str(n)+"] of var int: X_INTRODUCED_20_ ::var_is_introduced  = ["+var_list_string+"];\n")
+    women_var_list_string = ",".join(f"w{i}" for i in range(n))
+    serial_input.write("array [1.."+str(n)+"] of var int: X_INTRODUCED_20_ ::var_is_introduced  = ["+women_var_list_string+"];\n")
+    parallel_input.write("array [1.."+str(n)+"] of var int: X_INTRODUCED_20_ ::var_is_introduced  = ["+women_var_list_string+"];\n")
     
-    var_list_string = ",".join(f"m{i}" for i in range(n))
-    serial_input.write("array [1.."+str(n)+"] of var int: X_INTRODUCED_21_ ::var_is_introduced  = ["+var_list_string+"];\n")
-    parallel_input.write("array [1.."+str(n)+"] of var int: X_INTRODUCED_21_ ::var_is_introduced  = ["+var_list_string+"];\n")
+    men_var_list_string = ",".join(f"m{i}" for i in range(n))
+    serial_input.write("array [1.."+str(n)+"] of var int: X_INTRODUCED_21_ ::var_is_introduced  = ["+men_var_list_string+"];\n")
+    parallel_input.write("array [1.."+str(n)+"] of var int: X_INTRODUCED_21_ ::var_is_introduced  = ["+men_var_list_string+"];\n")
 
     serial_input.write("constraint minicpp_stable_matching(X_INTRODUCED_21_,X_INTRODUCED_20_,X_INTRODUCED_19_,X_INTRODUCED_18_):: uniud;\n")
     parallel_input.write("constraint minicpp_stable_matching(X_INTRODUCED_21_,X_INTRODUCED_20_,X_INTRODUCED_19_,X_INTRODUCED_18_):: gpu;\n")
 
-    serial_input.write("solve satisfy;\n")
-    parallel_input.write("solve satisfy;\n")
+    serial_input.write("solve :: seq_search([\n    int_search(["+men_var_list_string+"], input_order, indomain_min, complete),\n    int_search(["+women_var_list_string+"], input_order, indomain_max, complete)\n]) satisfy;\n")
+    parallel_input.write("solve :: seq_search([\n    int_search(["+men_var_list_string+"], input_order, indomain_min, complete),\n    int_search(["+women_var_list_string+"], input_order, indomain_max, complete)\n]) satisfy;\n")
 
     serial_input.close()
     parallel_input.close()
