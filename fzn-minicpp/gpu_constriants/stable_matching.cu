@@ -51,6 +51,7 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
 {
     setPriority(CLOW);
     cudaStreamCreate(&_stream);
+    _last_updated_variable = -1;
 
     // Get the size of the problem instance
     _n = static_cast<int>(_x.size());
@@ -60,7 +61,7 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     _d_y_domain = _d_x_domain + (_n * _n) / 32 + (_n % 32 != 0);
 
     //Host memory allocation
-    _x_domain = (uint32_t *)calloc(((_n * _n) / 32 + (_n % 32 != 0)) * 2, sizeof(uint32_t)); // calloc() because shortened domains may mean some bits are not written
+    _x_domain = (uint32_t *)malloc(((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t));
     _y_domain = _x_domain + ((_n * _n) / 32 + (_n % 32 != 0));
     _xpl = (int *)malloc((_n * _n * 4 + _n * 10 + 2) * sizeof(int));
     _ypl = _xpl + (_n* _n);
@@ -152,8 +153,8 @@ void StableMatchingGPU::post(){
     HANDLE_ERROR(cudaMemcpyAsync(_d_max_men, _max_men, (_n * 3 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
 
     //Copy the domains
-    dumpDomainsToBitset(true, _x, _x_domain, _old_min_men, _old_max_men);
-    dumpDomainsToBitset(true, _y, _y_domain, _old_min_women, _old_max_women);
+    dumpDomainsToBitset(_x, _x_domain, _old_min_men, _old_max_men);
+    dumpDomainsToBitset(_y, _y_domain, _old_min_women, _old_max_women);
     HANDLE_ERROR(cudaMemcpyAsync(_d_x_domain, _x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyHostToDevice, _stream));
 
     /*
@@ -235,8 +236,8 @@ void StableMatchingGPU::propagate(){
     HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_men, _stack_mod_men, (_n * 10 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
 
     //Copy domains to device
-    dumpDomainsToBitset(false, _x, _x_domain, _old_min_men, _old_max_men);
-    dumpDomainsToBitset(false, _y, _y_domain, _old_min_women, _old_max_women);
+    dumpDomainsToBitset(_x, _x_domain, _old_min_men, _old_max_men);
+    dumpDomainsToBitset(_y, _y_domain, _old_min_women, _old_max_women);
     HANDLE_ERROR(cudaMemcpyAsync(_d_x_domain, _x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyHostToDevice, _stream));
 
     /*
@@ -291,33 +292,25 @@ void StableMatchingGPU::copyPreferenceMatrix(std::vector<std::vector<int>> zpl_v
     }
 }
 
-void StableMatchingGPU::dumpDomainsToBitset(bool first_dump, std::vector<var<int>::Ptr> vars, uint32_t* dom, int* old_mins, int* old_maxes){
+void StableMatchingGPU::dumpDomainsToBitset(std::vector<var<int>::Ptr> vars, uint32_t* dom, int* old_mins, int* old_maxes){
     int starting_bit,ending_bit;
     int starting_word, ending_word;
     int var_min, var_max;
     uint32_t mask;
     for(int i=0; i<_n; i++){
         //Following code is commented: bitset modified before backtracking may not be updated
-        /*if(!(vars[i]->changed()) && !first_dump){ //backtracked variables are marked as changed
-            //printf("Skipping variable %i\n",i);
+        //_last_updated_variable allows the bitset to be correct even after backtracking
+        if(!(vars[i]->changed()) && (i < _last_updated_variable)){ //backtracked variables are marked as changed
             continue;
-        }*/
-
-        /*
-            During the first execution we use the current maxes and mins, since variable domains may have been shortened in their bitset representation (not [0,n-1]).
-            Since we initialized the rest of the domains to 0s, we can ignore the part of the domains outside these initial bounds.
-        */
-        if(first_dump){
-            var_min = vars[i]->min();
-            var_max = vars[i]->max();
-        } else {
-            var_min = old_mins[i];
-            var_max = old_maxes[i];
         }
+
+        //During the first dump, all the domains will be reset.
+        var_min = old_mins[i];
+        var_max = old_maxes[i];
 
         starting_bit = _n * i + var_min;
         starting_word = starting_bit/32;
-        ending_bit = _n * i +var_max;
+        ending_bit = _n * i + var_max;
         ending_word = ending_bit/32; 
 
         if (starting_word == ending_word) {
@@ -335,7 +328,7 @@ void StableMatchingGPU::dumpDomainsToBitset(bool first_dump, std::vector<var<int
             }
         
             // Clear bits in the last word
-            mask = 0xFFFFFFFF >> ((31 - ending_bit) % 32) << (31 - ending_bit) % 32;
+            mask = 0xFFFFFFFF >> ((31 - ending_bit) % 32) << ((31 - ending_bit) % 32);
             dom[ending_word] &= ~mask;
         }
         starting_bit = _n * i + vars[i]->min();
@@ -362,6 +355,7 @@ void StableMatchingGPU::updateHostData(){
         _old_min_men_trail[i]=_old_min_men[i];
     }
 
+    _last_updated_variable = -1;
     for (int i=0; i<_n; i++){ //_x and _y
         _x[i]->removeBelow(_old_min_men[i]);
         _x[i]->removeAbove(_old_max_men[i]);
@@ -378,6 +372,7 @@ void StableMatchingGPU::updateHostData(){
                 _y[i]->remove(j);
             }
         }
+        _last_updated_variable++; //index of both men and women
     }
 }
 

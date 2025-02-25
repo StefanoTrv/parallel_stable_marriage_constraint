@@ -2,6 +2,7 @@ import subprocess
 import argparse
 import random
 import shutil
+import os
 
 def main():
     parser = argparse.ArgumentParser("comparator")
@@ -10,16 +11,23 @@ def main():
     args = parser.parse_args()
     n = args.n
     full_tests = args.full_tests
+
+    empty_output_folder()
+
     errors = 0
     for i in range(full_tests):
         write_input_files(n,True)
         result_serial = subprocess.run(["./fzn-minicpp", "serial_input.fzn"], capture_output=True, text=True)
         serial_output = result_serial.stdout
+        serial_error_string = result_serial.stderr
+        if serial_error_string != "":
+            print("Execution of solver with serial constraint ended in error! Terminating...\nError details:\n"+serial_error_string)
+            return
         result_parallel = subprocess.run(["./fzn-minicpp", "parallel_input.fzn"], capture_output=True, text=True)
         parallel_output = result_parallel.stdout
-        error_string = result_serial.stderr
-        if error_string != "":
-            print("Execution of solver ended in error! Terminating...\nError details:\n"+error_string)
+        parallel_error_string = result_parallel.stderr
+        if parallel_error_string != "":
+            print("Execution of solver with parallel constraint ended in error! Terminating...\nError details:\n"+parallel_error_string)
             return
         if(serial_output != parallel_output):
             shutil.copyfile("serial_input.fzn", "out/error_"+str(errors)+"_serial.fzn")
@@ -28,7 +36,7 @@ def main():
             error_file.write("Serial output:\n"+serial_output+"\n\nParallel output:\n"+parallel_output)
             errors += 1
         if errors >= 20:
-            print("Found 20 errors! Interrupting after "+str(i)+" tests.")
+            print("Found 20 errors! Interrupting after "+str(i+1)+" tests.")
             return
         if i%25==0:
             print("Completed test "+str(i)+" out of "+str(full_tests)+".")
@@ -94,6 +102,10 @@ def random_preference_table(n : int):
         random.shuffle(preference_list)
         preference_table+=(preference_list)
     return preference_table
+
+def empty_output_folder():
+    shutil.rmtree("out", ignore_errors=True)
+    os.makedirs("out")
 
 if __name__ == "__main__":
     main()

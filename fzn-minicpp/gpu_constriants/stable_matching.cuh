@@ -18,6 +18,7 @@ class StableMatchingGPU : public Constraint
         std::vector<trail<int>> _old_max_women_trail;
         cudaStream_t _stream;
         int _n_SMP;
+        int _last_updated_variable;
         //Host pointers
         uint32_t *_x_domain, *_y_domain;
         int *_xpl, *_ypl;
@@ -46,7 +47,7 @@ class StableMatchingGPU : public Constraint
     protected:
         void buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz);
         void copyPreferenceMatrix(std::vector<std::vector<int>> zpl, int *zPz);
-        void dumpDomainsToBitset(bool first_dump, std::vector<var<int>::Ptr> vars, uint32_t* dom, int* old_mins, int* old_maxes);
+        void dumpDomainsToBitset(std::vector<var<int>::Ptr> vars, uint32_t* dom, int* old_mins, int* old_maxes);
         int getBitHost(uint32_t* bitmap, int index);
         int getDomainBitHost(uint32_t* bitmap, int row, int column);
         void updateHostData();

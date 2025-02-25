@@ -373,7 +373,7 @@ void BitDomain::dumpWithOffset(int min, int max, unsigned int * dump,int offset)
             }
             
             mask = max_word_mask & maskR;
-            dump[i]= prevWord | ((_dom[max_dom_word_idx].value() & max_word_mask) >> offset);
+            dump[i]= prevWord | ((_dom[max_dom_word_idx].value() & max_word_mask) >> offset) | (dump[i] & (~max_word_mask >> offset));
             prevWord = (_dom[max_dom_word_idx].value() & mask) << (32-offset);
             
             i++;
