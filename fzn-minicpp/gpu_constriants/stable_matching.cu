@@ -51,7 +51,7 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
 {
     setPriority(CLOW);
     cudaStreamCreate(&_stream);
-    _last_updated_variable = -1;
+    _has_backtracked = true;
 
     // Get the size of the problem instance
     _n = static_cast<int>(_x.size());
@@ -304,13 +304,12 @@ void StableMatchingGPU::dumpDomainsToBitset(std::vector<var<int>::Ptr> vars, uin
     int var_min, var_max;
     uint32_t mask;
     for(int i=0; i<_n; i++){
-        //Following code is commented: bitset modified before backtracking may not be updated
-        //_last_updated_variable allows the bitset to be correct even after backtracking
-        if(!(vars[i]->changed()) && (i < _last_updated_variable)){ //backtracked variables are marked as changed
+        //_has_backtracked allows the bitset to be correct even after backtracking
+        if(!(vars[i]->changed()) && !_has_backtracked){ //backtracked variables are marked as changed
             continue;
         }
 
-        //During the first dump, all the domains will be reset.
+        //Note: During the first dump, all the domains will be reset.
         var_min = old_mins[i];
         var_max = old_maxes[i];
 
@@ -361,7 +360,7 @@ void StableMatchingGPU::updateHostData(){
         _old_min_men_trail[i]=_old_min_men[i];
     }
 
-    _last_updated_variable = -1;
+    _has_backtracked = true;
     for (int i=0; i<_n; i++){ //_x and _y
         _x[i]->removeBelow(_old_min_men[i]);
         _x[i]->removeAbove(_old_max_men[i]);
@@ -378,8 +377,8 @@ void StableMatchingGPU::updateHostData(){
                 _y[i]->remove(j);
             }
         }
-        _last_updated_variable++; //index of both men and women
     }
+    _has_backtracked = false; //all variables have been updated without triggering the backtracking
 }
 
 // Computes the appropriate block size and number of blocks based on the number of threads required and the number of SMPs

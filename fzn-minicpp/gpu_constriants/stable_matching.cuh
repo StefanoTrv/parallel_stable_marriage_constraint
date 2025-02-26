@@ -18,7 +18,7 @@ class StableMatchingGPU : public Constraint
         std::vector<trail<int>> _old_max_women_trail;
         cudaStream_t _stream;
         int _n_SMP;
-        int _last_updated_variable;
+        bool _has_backtracked;
         //Host pointers
         uint32_t *_x_domain, *_y_domain;
         int *_xpl, *_ypl;

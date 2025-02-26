@@ -89,8 +89,11 @@ def write_input_files(n : int, full_domains : bool):
     serial_input.write("constraint minicpp_stable_matching(X_INTRODUCED_21_,X_INTRODUCED_20_,X_INTRODUCED_19_,X_INTRODUCED_18_):: uniud;\n")
     parallel_input.write("constraint minicpp_stable_matching(X_INTRODUCED_21_,X_INTRODUCED_20_,X_INTRODUCED_19_,X_INTRODUCED_18_):: gpu;\n")
 
-    serial_input.write("solve :: seq_search([\n    int_search(["+men_var_list_string+"], input_order, indomain_min, complete),\n    int_search(["+women_var_list_string+"], input_order, indomain_max, complete)\n]) satisfy;\n")
-    parallel_input.write("solve :: seq_search([\n    int_search(["+men_var_list_string+"], input_order, indomain_min, complete),\n    int_search(["+women_var_list_string+"], input_order, indomain_max, complete)\n]) satisfy;\n")
+    #serial_input.write("solve :: seq_search([\n    int_search(["+men_var_list_string+"], input_order, indomain_min, complete),\n    int_search(["+women_var_list_string+"], input_order, indomain_max, complete)\n]) satisfy;\n")
+    #parallel_input.write("solve :: seq_search([\n    int_search(["+men_var_list_string+"], input_order, indomain_min, complete),\n    int_search(["+women_var_list_string+"], input_order, indomain_max, complete)\n]) satisfy;\n")
+
+    serial_input.write("solve  satisfy;\n")
+    parallel_input.write("solve  satisfy;\n")
 
     serial_input.close()
     parallel_input.close()

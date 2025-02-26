@@ -47,6 +47,10 @@ void StableMatching::post(){
 }
 
 void StableMatching::propagate(){
+    //Empties the queue in case of backtracking
+    while(!_callQueue.empty()){
+        _callQueue.pop();
+    }
     //Fills queue
     for(int i=0; i<_n; i++){
         if(_x[i]->min()!=_xlb[i]){ //Check if min changed using xlb (more precise than changedMin())
