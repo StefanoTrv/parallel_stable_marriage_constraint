@@ -233,6 +233,12 @@ void StableMatchingGPU::propagate(){
             _length_women_stack++;
         }
     }
+    for(int i=0; i<_n; i++){
+        _min_women[i]=_y[i]->min();
+        _max_men[i]=_x[i]->max();
+        _max_women[i]=_y[i]->max();
+    }
+
     HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_men, _stack_mod_men, (_n * 10 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
 
     //Copy domains to device
@@ -255,8 +261,8 @@ void StableMatchingGPU::propagate(){
     HANDLE_ERROR(cudaMemsetAsync(_d_array_min_mod_men,0,sizeof(int)*_n, _stream));
 
     // updates _length_min_men_stack
-    HANDLE_ERROR(cudaMemcpyAsync(_length_min_men_stack, _d_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, _stream));
-    cudaStreamSynchronize(_stream); // to be able to read _length_min_men_stack
+    HANDLE_ERROR(cudaMemcpyAsync(_length_min_men_stack, _d_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, _stream)); //si può togliere
+    cudaStreamSynchronize(_stream); // to be able to read _length_min_men_stack //si può togliere
 
     iterateFun2();
 
