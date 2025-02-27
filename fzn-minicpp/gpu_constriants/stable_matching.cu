@@ -51,7 +51,6 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
 {
     setPriority(CLOW);
     cudaStreamCreate(&_stream);
-    _has_backtracked = true;
 
     // Get the size of the problem instance
     _n = static_cast<int>(_x.size());
@@ -157,6 +156,10 @@ void StableMatchingGPU::post(){
     dumpDomainsToBitset(_y, _y_domain, _old_min_women, _old_max_women);
     HANDLE_ERROR(cudaMemcpyAsync(_d_x_domain, _x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyHostToDevice, _stream));
 
+    //Initializes the update_counters, which allow for baktracking identification
+    _propagation_counter_trail = trail<int>(_x[0]->getSolver()->getStateManager(), 0);
+    _propagation_counter = 1;
+
     /*
         Excute kernels
     */
@@ -204,6 +207,10 @@ void StableMatchingGPU::post(){
     for (auto const & v : _y){
         v->propagateOnDomainChange(this);
     }
+
+    //Sets the counters
+    _propagation_counter_trail = 1;
+    _propagation_counter = 1;
 }
 
 void StableMatchingGPU::propagate(){
@@ -246,6 +253,10 @@ void StableMatchingGPU::propagate(){
     dumpDomainsToBitset(_y, _y_domain, _old_min_women, _old_max_women);
     HANDLE_ERROR(cudaMemcpyAsync(_d_x_domain, _x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyHostToDevice, _stream));
 
+    //Updates and increases counters
+    _propagation_counter_trail += 1;
+    _propagation_counter = _propagation_counter_trail;
+
     /*
         Excute kernels
     */
@@ -261,8 +272,8 @@ void StableMatchingGPU::propagate(){
     HANDLE_ERROR(cudaMemsetAsync(_d_array_min_mod_men,0,sizeof(int)*_n, _stream));
 
     // updates _length_min_men_stack
-    HANDLE_ERROR(cudaMemcpyAsync(_length_min_men_stack, _d_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, _stream)); //si può togliere
-    cudaStreamSynchronize(_stream); // to be able to read _length_min_men_stack //si può togliere
+    HANDLE_ERROR(cudaMemcpyAsync(_length_min_men_stack, _d_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, _stream));
+    cudaStreamSynchronize(_stream); // to be able to read _length_min_men_stack
 
     iterateFun2();
 
@@ -303,9 +314,10 @@ void StableMatchingGPU::dumpDomainsToBitset(std::vector<var<int>::Ptr> vars, uin
     int starting_word, ending_word;
     int var_min, var_max;
     uint32_t mask;
+    bool has_backtracked = _propagation_counter_trail != _propagation_counter;
     for(int i=0; i<_n; i++){
         //_has_backtracked allows the bitset to be correct even after backtracking
-        if(!(vars[i]->changed()) && !_has_backtracked){ //backtracked variables are marked as changed
+        if(!(vars[i]->changed()) && !has_backtracked){
             continue;
         }
 
@@ -360,7 +372,6 @@ void StableMatchingGPU::updateHostData(){
         _old_min_men_trail[i]=_old_min_men[i];
     }
 
-    _has_backtracked = true;
     for (int i=0; i<_n; i++){ //_x and _y
         _x[i]->removeBelow(_old_min_men[i]);
         _x[i]->removeAbove(_old_max_men[i]);
@@ -378,7 +389,6 @@ void StableMatchingGPU::updateHostData(){
             }
         }
     }
-    _has_backtracked = false; //all variables have been updated without triggering the backtracking
 }
 
 // Computes the appropriate block size and number of blocks based on the number of threads required and the number of SMPs
