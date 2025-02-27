@@ -402,7 +402,7 @@ void BitDomain::dumpWithOffset(int min, int max, unsigned int * dump,int offset)
     }else{ //offset<min_dom_bit_idx, shift left
         offset= min_dom_bit_idx - offset;
 
-        unsigned int maskL= getLeftFilledMask32(offset);    
+        unsigned int maskL= getLeftFilledMask32(offset);
 
         //here offset is >0 <=31
         if(min_dom_word_idx==max_dom_word_idx){
@@ -430,8 +430,9 @@ void BitDomain::dumpWithOffset(int min, int max, unsigned int * dump,int offset)
                 i++;
             }
             if(min_dom_word_idx+1!=max_dom_word_idx){
-                succW=(_dom[max_dom_word_idx].value() & max_word_mask & maskL) >> (32-offset);
-                dump[i]= succW | ((_dom[max_dom_word_idx-1].value()) << offset);
+                mask = max_word_mask & maskL;
+                succW=(_dom[max_dom_word_idx].value() & mask) >> (32-offset);
+                dump[i]= succW | ((_dom[max_dom_word_idx-1].value()) << offset) | (dump[i] & (~mask >> (32-offset)));
                 i++;
             }
             dump[i]=((_dom[max_dom_word_idx].value() & max_word_mask) << offset) | (dump[i] & ~(max_word_mask << offset));

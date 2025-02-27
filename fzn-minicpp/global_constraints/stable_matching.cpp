@@ -6,6 +6,50 @@
 
 #include "stable_matching.hpp"
 
+/*void print_domains(int n, std::vector<var<int>::Ptr> _x, std::vector<var<int>::Ptr> _y){
+    int v;
+    printf("\nMen domains:\n");
+    printf("_\t");
+    for (int i = 0; i < n; i++) {
+        printf("%d\t", i);
+    }
+    for(int i =0;i<n;i++){
+        printf("\n%d:\t", i);
+        for(int j = 0;j<n;j++){
+            if(_x[i]->contains(j)){
+                v = 1;
+            } else {
+                v = 0;
+            }
+            printf("%i\t", v);
+        }
+        printf("\n");
+    }
+    
+    printf("\n");
+    
+    printf("\nWomen domains:\n");
+    printf("_\t");
+    for (int i = 0; i < n; i++) {
+        printf("%d\t", i);
+    }
+    for(int i =0;i<n;i++){
+        printf("\n%d:\t", i);
+        for(int j = 0;j<n;j++){
+            if(_y[i]->contains(j)){
+                v = 1;
+            } else {
+                v = 0;
+            }
+            printf("%i\t", v);
+        }
+        printf("\n");
+    }
+    
+    printf("\n\n");
+    
+}*/
+
 StableMatching::StableMatching(std::vector<var<int>::Ptr> & m, std::vector<var<int>::Ptr> & w, std::vector<std::vector<int>> const & mpl, std::vector<std::vector<int>> const & wpl) :
     Constraint(m[0]->getSolver()), _x(m), _y(w), _xpl(mpl), _ypl(wpl)
 {
