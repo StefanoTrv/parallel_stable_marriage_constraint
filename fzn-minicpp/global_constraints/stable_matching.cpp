@@ -72,9 +72,19 @@ StableMatching::StableMatching(std::vector<var<int>::Ptr> & m, std::vector<var<i
         _xub.push_back(trail<int>(m[0]->getSolver()->getStateManager(), _n-1));
         _xlb.push_back(trail<int>(m[0]->getSolver()->getStateManager(), 0));
     }
+
+    //Initializes _x_old_sizes and _y_old_sizes for post
+    for (int i=0; i<_n; i++)
+    {
+        _x_old_sizes.push_back(trail<int>(_x[0]->getSolver()->getStateManager(), _n));
+        _y_old_sizes.push_back(trail<int>(_x[0]->getSolver()->getStateManager(), _n));
+    }
 }
 
 void StableMatching::post(){
+    //If domains are not full, adds the appropriate calls to the queue
+    fillQueue();
+
     init();
 
     propagateOnQueue();
@@ -89,13 +99,11 @@ void StableMatching::post(){
         v->propagateOnDomainChange(this);
     }
 
-    //Initializes _x_old_sizes and _y_old_sizes for the first propagation
-    for (int i=0; i<_n; i++)
-    {
-        _x_old_sizes.push_back(trail<int>(_x[0]->getSolver()->getStateManager(), _x[i]->size()));
-        _y_old_sizes.push_back(trail<int>(_x[0]->getSolver()->getStateManager(), _y[i]->size()));
+    //Updates old sizes
+    for(int i=0; i<_n; i++){
+        _x_old_sizes[i]=_x[i]->size();
+        _y_old_sizes[i]=_y[i]->size();
     }
-
 }
 
 void StableMatching::propagate(){
@@ -103,7 +111,27 @@ void StableMatching::propagate(){
     while(!_callQueue.empty()){
         _callQueue.pop();
     }
-    //Fills queue
+    
+    fillQueue();
+
+    propagateOnQueue();
+
+    //Updates old sizes
+    for(int i=0; i<_n; i++){
+        _x_old_sizes[i]=_x[i]->size();
+        _y_old_sizes[i]=_y[i]->size();
+    }
+}
+
+void StableMatching::buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz){
+    for(int i=0;i<_n;i++){
+        for(int j=0;j<_n;j++){
+            zPz[i*_n+zpl[i][j]]=j;
+        }
+    }
+}
+
+void StableMatching::fillQueue(){
     for(int i=0; i<_n; i++){
         if(_x[i]->min()!=_xlb[i]){ //Check if min changed using xlb (more precise than changedMin())
             _callQueue.push(constraintCall(1,i,0,0));
@@ -125,22 +153,6 @@ void StableMatching::propagate(){
                     _callQueue.push(constraintCall(0,i,k,0));
                 }
             }
-        }
-    }
-
-    propagateOnQueue();
-
-    //Updates old sizes
-    for(int i=0; i<_n; i++){
-        _x_old_sizes[i]=_x[i]->size();
-        _y_old_sizes[i]=_y[i]->size();
-    }
-}
-
-void StableMatching::buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz){
-    for(int i=0;i<_n;i++){
-        for(int j=0;j<_n;j++){
-            zPz[i*_n+zpl[i][j]]=j;
         }
     }
 }
@@ -242,6 +254,8 @@ void StableMatching::deltaMax(int j){
 
 void StableMatching::init(){
     for(int i=0;i<_n;i++){
-        deltaMin(i);
+        if(_x[i]->min()==0){ //avoids redundant calls already queued by fillQueue()
+            deltaMin(i);
+        }
     }
 }

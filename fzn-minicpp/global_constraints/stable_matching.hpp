@@ -52,6 +52,7 @@ class StableMatching : public Constraint
     
     protected:
         void buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz);
+        void fillQueue();
         void propagateOnQueue();
         void functionDispatcher();
         void removeValue(int i, int a, int isMan);
