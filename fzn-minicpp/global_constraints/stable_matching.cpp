@@ -88,6 +88,14 @@ void StableMatching::post(){
     {
         v->propagateOnDomainChange(this);
     }
+
+    //Initializes _x_old_sizes and _y_old_sizes for the first propagation
+    for (int i=0; i<_n; i++)
+    {
+        _x_old_sizes.push_back(trail<int>(_x[0]->getSolver()->getStateManager(), _x[i]->size()));
+        _y_old_sizes.push_back(trail<int>(_x[0]->getSolver()->getStateManager(), _y[i]->size()));
+    }
+
 }
 
 void StableMatching::propagate(){
@@ -103,7 +111,7 @@ void StableMatching::propagate(){
         if(_y[i]->max()!=_yub[i]){ //Check if max changed using yub (more precise than changedMin())
             _callQueue.push(constraintCall(2,i,0,0));
         }
-        if(_x[i]->changed()){ //Search domain for removed values only if variable is marked as changed
+        if(_x[i]->size()!=_x_old_sizes[i]){ //Search domain for removed values only if variable was changed (that is, if its size has changed)
             for(int k=_x[i]->min()+1;k<=_xub[i];k++){
                 if(!_x[i]->contains(k)){
                     _callQueue.push(constraintCall(0,i,k,1));
@@ -111,7 +119,7 @@ void StableMatching::propagate(){
             }
         }
         //Applies remove value on the women too (this is missing from the original paper)
-        if(_y[i]->changed()){//Search domain for removed values only if variable is marked as changed
+        if(_y[i]->size()!=_y_old_sizes[i]){//Search domain for removed values only if variable was changed (that is, if its size has changed)
             for(int k=_ylb[i];k<_y[i]->max();k++){
                 if(!_y[i]->contains(k)){
                     _callQueue.push(constraintCall(0,i,k,0));
@@ -121,6 +129,12 @@ void StableMatching::propagate(){
     }
 
     propagateOnQueue();
+
+    //Updates old sizes
+    for(int i=0; i<_n; i++){
+        _x_old_sizes[i]=_x[i]->size();
+        _y_old_sizes[i]=_y[i]->size();
+    }
 }
 
 void StableMatching::buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz){
@@ -132,6 +146,11 @@ void StableMatching::buildReverseMatrix(std::vector<std::vector<int>> zpl, int *
 }
 
 void StableMatching::propagateOnQueue(){
+    //Returns immediately if there's no variable to be updated
+    if(_callQueue.empty()){
+        return;
+    }
+
     // Executes functions until the queue is empty
     while(!_callQueue.empty()){
         functionDispatcher();

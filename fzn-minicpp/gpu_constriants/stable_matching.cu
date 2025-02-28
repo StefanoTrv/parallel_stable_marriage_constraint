@@ -151,14 +151,21 @@ void StableMatchingGPU::post(){
     //Copies the remaining data structures
     HANDLE_ERROR(cudaMemcpyAsync(_d_max_men, _max_men, (_n * 3 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
 
-    //Copy the domains
-    dumpDomainsToBitset(_x, _x_domain, _old_min_men, _old_max_men);
-    dumpDomainsToBitset(_y, _y_domain, _old_min_women, _old_max_women);
-    HANDLE_ERROR(cudaMemcpyAsync(_d_x_domain, _x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyHostToDevice, _stream));
-
     //Initializes the update_counters, which allow for baktracking identification
     _propagation_counter_trail = trail<int>(_x[0]->getSolver()->getStateManager(), 0);
     _propagation_counter = 1;
+
+    //Initializes _x_old_sizes and _y_old_sizes with wrong sizes, to force dumping of all variables (redundant, because _propagation_counter!=_propagation_counter_trail)
+    for (int i=0; i<_n; i++)
+    {
+        _x_old_sizes.push_back(trail<int>(_x[0]->getSolver()->getStateManager(), 0));
+        _y_old_sizes.push_back(trail<int>(_x[0]->getSolver()->getStateManager(), 0));
+    }
+
+    //Copy the domains
+    dumpDomainsToBitset(_x, _x_domain, _old_min_men, _old_max_men,_x_old_sizes);
+    dumpDomainsToBitset(_y, _y_domain, _old_min_women, _old_max_women,_y_old_sizes);
+    HANDLE_ERROR(cudaMemcpyAsync(_d_x_domain, _x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyHostToDevice, _stream));
 
     /*
         Excute kernels
@@ -211,6 +218,13 @@ void StableMatchingGPU::post(){
     //Sets the counters
     _propagation_counter_trail = 1;
     _propagation_counter = 1;
+
+    //Initializes _x_old_sizes and _y_old_sizes for the first propagation
+    for (int i=0; i<_n; i++)
+    {
+        _x_old_sizes[i] = _x[i]->size();
+        _y_old_sizes[i] = _y[i]->size();
+    }
 }
 
 void StableMatchingGPU::propagate(){
@@ -220,25 +234,28 @@ void StableMatchingGPU::propagate(){
     _length_women_stack = 0;
     *_length_min_men_stack = 0;
     *_new_length_min_men_stack = 0;
+    for(int i=0; i<_n; i++){
+        if(_x[i]->size()!=_x_old_sizes[i]){ //if variable was modified (compares the sizes to avoid false positives given by changed())
+            _stack_mod_men[_length_men_stack]=i;
+            _length_men_stack++;
+            if(_x[i]->min()!=_old_min_men_trail[i]){ //if min is changed (this comparison avoids false positives given by changedMin())
+                _stack_mod_min_men[*_length_min_men_stack]=i;
+                (*_length_min_men_stack)++;
+            }
+        }
+        if(_y[i]->size()!=_y_old_sizes[i]){ //if variable was modified (compares the sizes to avoid false positives given by changed())
+            _stack_mod_women[_length_women_stack]=i;
+            _length_women_stack++;
+        }
+    }
+    if(_length_men_stack+_length_women_stack==0){ //no variable needs to be updated: quits immediately
+        return;
+    }
     for(int i=0;i<_n;i++){
         _old_min_men[i]=_old_min_men_trail[i];
         _old_min_women[i]=_old_min_women_trail[i];
         _old_max_men[i]=_old_max_men_trail[i];
         _old_max_women[i]=_old_max_women_trail[i];
-    }
-    for(int i=0; i<_n; i++){
-        if(_x[i]->changed()){
-            _stack_mod_men[_length_men_stack]=i;
-            _length_men_stack++;
-            if(_x[i]->changedMin()){
-                _stack_mod_min_men[*_length_min_men_stack]=i;
-                (*_length_min_men_stack)++;
-            }
-        }
-        if(_y[i]->changed()){
-            _stack_mod_women[_length_women_stack]=i;
-            _length_women_stack++;
-        }
     }
     for(int i=0; i<_n; i++){
         _min_women[i]=_y[i]->min();
@@ -249,8 +266,8 @@ void StableMatchingGPU::propagate(){
     HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_men, _stack_mod_men, (_n * 10 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
 
     //Copy domains to device
-    dumpDomainsToBitset(_x, _x_domain, _old_min_men, _old_max_men);
-    dumpDomainsToBitset(_y, _y_domain, _old_min_women, _old_max_women);
+    dumpDomainsToBitset(_x, _x_domain, _old_min_men, _old_max_men, _x_old_sizes);
+    dumpDomainsToBitset(_y, _y_domain, _old_min_women, _old_max_women, _y_old_sizes);
     HANDLE_ERROR(cudaMemcpyAsync(_d_x_domain, _x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyHostToDevice, _stream));
 
     //Updates and increases counters
@@ -291,6 +308,12 @@ void StableMatchingGPU::propagate(){
     HANDLE_ERROR(cudaMemcpyAsync(_old_min_men, _d_old_min_men, sizeof(int) * _n * 4, cudaMemcpyDeviceToHost, _stream));
     cudaStreamSynchronize(_stream);
     updateHostData();
+
+    //Updates old sizes
+    for(int i=0; i<_n; i++){
+        _x_old_sizes[i]=_x[i]->size();
+        _y_old_sizes[i]=_y[i]->size();
+    }
 }
 
 void StableMatchingGPU::buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz){
@@ -309,7 +332,7 @@ void StableMatchingGPU::copyPreferenceMatrix(std::vector<std::vector<int>> zpl_v
     }
 }
 
-void StableMatchingGPU::dumpDomainsToBitset(std::vector<var<int>::Ptr> vars, uint32_t* dom, int* old_mins, int* old_maxes){
+void StableMatchingGPU::dumpDomainsToBitset(std::vector<var<int>::Ptr> vars, uint32_t* dom, int* old_mins, int* old_maxes, std::vector<trail<int>> old_sizes){
     int starting_bit,ending_bit;
     int starting_word, ending_word;
     int var_min, var_max;
@@ -317,7 +340,7 @@ void StableMatchingGPU::dumpDomainsToBitset(std::vector<var<int>::Ptr> vars, uin
     bool has_backtracked = _propagation_counter_trail != _propagation_counter;
     for(int i=0; i<_n; i++){
         //_has_backtracked allows the bitset to be correct even after backtracking
-        if(!(vars[i]->changed()) && !has_backtracked){
+        if(vars[i]->size()==old_sizes[i] && !has_backtracked){ //checks size to see if variable has changed
             continue;
         }
 

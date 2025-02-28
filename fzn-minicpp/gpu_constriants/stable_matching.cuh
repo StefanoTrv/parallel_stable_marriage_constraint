@@ -20,6 +20,8 @@ class StableMatchingGPU : public Constraint
         int _n_SMP;
         trail<int> _propagation_counter_trail;
         int _propagation_counter;
+        std::vector<trail<int>> _x_old_sizes;
+        std::vector<trail<int>> _y_old_sizes;
         //Host pointers
         uint32_t *_x_domain, *_y_domain;
         int *_xpl, *_ypl;
@@ -48,7 +50,7 @@ class StableMatchingGPU : public Constraint
     protected:
         void buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz);
         void copyPreferenceMatrix(std::vector<std::vector<int>> zpl, int *zPz);
-        void dumpDomainsToBitset(std::vector<var<int>::Ptr> vars, uint32_t* dom, int* old_mins, int* old_maxes);
+        void dumpDomainsToBitset(std::vector<var<int>::Ptr> vars, uint32_t* dom, int* old_mins, int* old_maxes, std::vector<trail<int>> old_sizes);
         int getBitHost(uint32_t* bitmap, int index);
         int getDomainBitHost(uint32_t* bitmap, int row, int column);
         void updateHostData();

@@ -41,6 +41,8 @@ class StableMatching : public Constraint
         std::vector<trail<int>> _yub;
         std::vector<trail<int>> _ylb;
         std::queue<constraintCall> _callQueue;
+        std::vector<trail<int>> _x_old_sizes;
+        std::vector<trail<int>> _y_old_sizes;
 
     // Constraint methods
     public:
