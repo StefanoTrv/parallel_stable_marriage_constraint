@@ -11,6 +11,7 @@ class StableMatching : public Constraint
     // 0: removeValue
     // 1: deltaMin
     // 2: deltaMax
+    // 3: inst
     int function;
 
     int ij;
@@ -58,6 +59,7 @@ class StableMatching : public Constraint
         void removeValue(int i, int a, int isMan);
         void deltaMin(int i);
         void deltaMax(int j);
+        void inst(int i, int isMan);
         void init();
 };
 

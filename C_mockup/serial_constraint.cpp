@@ -5,6 +5,7 @@ struct constraintCall{
     // 0: removeValue
     // 1: deltaMin
     // 2: deltaMax
+    // 3: inst
     int function;
 
     int ij;
@@ -21,21 +22,66 @@ struct constraintCall{
         : function(function), ij(ij), a(a), isMan(isMan) {}
 };
 
-/*void inst(int i, int n, uint32_t* x_domain, uint32_t* y_domain, int* xpl, int* ypl, int* xPy, int* yPx){
+void inst(int i, int n, int isMan, uint32_t* x_domain, uint32_t* y_domain, int* xpl, int* ypl, int* xPy, int* yPx, int* xlb, int* yub, std::queue<constraintCall> *queue){
     int j;
-    for(int k=0;k<getVal(n,x_domain,i);k++){
-        j = xpl[i*n+k];
-        setMax(n,y_domain,j,yPx[j*n+i]-1);
+    if(isMan){
+        for(int k=xlb[i]; k<getMin(n,x_domain,i);k++){
+            j = xpl[i*n+k];
+            if (getMax(n,y_domain,j)>yPx[j*n+i]-1){
+                setMax(n,y_domain,j,yPx[j*n+i]-1);
+                //Adds deltaMax to queue
+                queue->push(constraintCall(2,j,0,0));
+            }
+        }
+        j = xpl[i*n+getVal(n,x_domain,i)];
+        if(getVal(n,y_domain,j)!=yPx[j*n+i]){
+            setMax(n,y_domain,j,yPx[j*n+i]);
+            setMin(n,y_domain,j,yPx[j*n+i]);
+            //Adds inst to queue
+            queue->push(constraintCall(3,j,0,0));
+        }
+        for(int k = getVal(n,x_domain,i)+1; k<n; k++){
+            j = xpl[i*n+k];
+            if(getDomainBit(y_domain,j,yPx[j*n+i],n)){
+                if(getMax(n,y_domain,j)==yPx[j*n+i]){
+                    //Adds deltaMax to queue
+                    queue->push(constraintCall(2,j,0,0));
+                }
+                remVal(n,y_domain,j,yPx[j*n+i]);
+            }
+        }
+        xlb[i] = getMin(n,x_domain,i);
+    } else {
+        for(int k=0; k<getMin(n,y_domain,i);k++){
+            j = ypl[i*n+k];
+            if(getDomainBit(x_domain,j,xPy[j*n+i],n)){
+                if(getMin(n,x_domain,j)==xPy[j*n+i]){
+                    //Adds deltaMin to queue
+                    queue->push(constraintCall(1,j,0,0));
+                }
+                remVal(n,x_domain,j,xPy[j*n+i]);
+            }
+        }
+        j = ypl[i*n+getVal(n,y_domain,i)];
+        if(getVal(n,x_domain,j)!=xPy[j*n+i]){
+            setMax(n,x_domain,j,xPy[j*n+i]);
+            setMin(n,x_domain,j,xPy[j*n+i]);
+            //Adds inst to queue
+            queue->push(constraintCall(3,j,0,1));
+        }
+        for(int k = getVal(n,y_domain,i)+1; k<=yub[i]; k++){
+            j = ypl[i*n+k];
+            if(getDomainBit(x_domain,j,xPy[j*n+i],n)){
+                if(getMin(n,x_domain,j)==xPy[j*n+i]){
+                    //Adds deltaMin to queue
+                    queue->push(constraintCall(1,j,0,0));
+                }
+                remVal(n,x_domain,j,xPy[j*n+i]);
+            }
+        }
+        yub[i]=getMax(n,y_domain,i);
     }
-
-    j = xpl[i*n+getVal(n,x_domain,i)];
-    setVal(n,y_domain,j,yPx[j*n+i]);
-
-    for(int k=getVal(n,x_domain,i)+1;k<n;k++){
-        j = xpl[i*n+k];
-        remVal(n,y_domain,j,yPx[j*n+i]);
-    }
-}*/
+}
 
 void removeValue(int i, int a, int isMan, int n, uint32_t* x_domain, uint32_t* y_domain, int* xpl, int* ypl, int* xPy, int* yPx, std::queue<constraintCall> *queue){
     if (isMan){
@@ -84,14 +130,10 @@ void deltaMax(int j, int n, uint32_t* x_domain, uint32_t* y_domain, int* xpl, in
         i = ypl[j*n+k];
         if(getDomainBit(x_domain,i,xPy[i*n+j],n)){
             if(getMin(n,x_domain,i)==xPy[i*n+j]){
-                remVal(n,x_domain,i,xPy[i*n+j]);
                 //Adds deltaMin to queue
                 queue->push(constraintCall(1,i,0,0));
-            } else {
-                remVal(n,x_domain,i,xPy[i*n+j]);
-                //Adds removeValue to queue
-                queue->push(constraintCall(0,i,xPy[i*n+j],1));
             }
+            remVal(n,x_domain,i,xPy[i*n+j]);
         }
     }
     yub[j]=getMax(n,y_domain,j);

@@ -133,24 +133,32 @@ void StableMatching::buildReverseMatrix(std::vector<std::vector<int>> zpl, int *
 
 void StableMatching::fillQueue(){
     for(int i=0; i<_n; i++){
-        if(_x[i]->min()!=_xlb[i]){ //Check if min changed using xlb (more precise than changedMin())
-            _callQueue.push(constraintCall(1,i,0,0));
-        }
-        if(_y[i]->max()!=_yub[i]){ //Check if max changed using yub (more precise than changedMin())
-            _callQueue.push(constraintCall(2,i,0,0));
-        }
-        if(_x[i]->size()!=_x_old_sizes[i]){ //Search domain for removed values only if variable was changed (that is, if its size has changed)
-            for(int k=_x[i]->min()+1;k<=_xub[i];k++){
-                if(!_x[i]->contains(k)){
-                    _callQueue.push(constraintCall(0,i,k,1));
+        if(_x[i]->size()!=_x_old_sizes[i]){ //variable for man was changed (its size has changed)
+            if(_x[i]->isBound()){
+                _callQueue.push(constraintCall(3,i,0,1));
+            } else {
+                if(_x[i]->min()!=_xlb[i]){ //Check if min changed using xlb (more precise than changedMin())
+                    _callQueue.push(constraintCall(1,i,0,0));
+                }
+                for(int k=_x[i]->min()+1;k<=_xub[i];k++){
+                    if(!_x[i]->contains(k)){
+                        _callQueue.push(constraintCall(0,i,k,1));
+                    }
                 }
             }
         }
-        //Applies remove value on the women too (this is missing from the original paper)
-        if(_y[i]->size()!=_y_old_sizes[i]){//Search domain for removed values only if variable was changed (that is, if its size has changed)
-            for(int k=_ylb[i];k<_y[i]->max();k++){
-                if(!_y[i]->contains(k)){
-                    _callQueue.push(constraintCall(0,i,k,0));
+        if(_y[i]->size()!=_y_old_sizes[i]){ //variable for woman was changed (its size has changed)
+            if(_y[i]->isBound()){
+                _callQueue.push(constraintCall(3,i,0,0));
+            } else {
+                if(_y[i]->max()!=_yub[i]){ //Check if max changed using yub (more precise than changedMin())
+                    _callQueue.push(constraintCall(2,i,0,0));
+                }
+                //Applies remove value on the women too (this is missing from the original paper)
+                for(int k=_ylb[i];k<_y[i]->max();k++){
+                    if(!_y[i]->contains(k)){
+                        _callQueue.push(constraintCall(0,i,k,0));
+                    }
                 }
             }
         }
@@ -188,6 +196,10 @@ void StableMatching::functionDispatcher(){
 
         case 2: // deltaMax
             deltaMax(c.ij);
+            break;
+        
+        case 3: // inst
+            inst(c.ij,c.isMan);
             break;
     }
     _callQueue.pop();
@@ -239,17 +251,80 @@ void StableMatching::deltaMax(int j){
         i = _ypl[j][k];
         if(_x[i]->contains(_xPy[i*_n+j])){
             if(_x[i]->min()==_xPy[i*_n+j]){
-                _x[i]->remove(_xPy[i*_n+j]);
                 //Adds deltaMin to queue
                 _callQueue.push(constraintCall(1,i,0,0));
-            } else {
-                _x[i]->remove(_xPy[i*_n+j]);
-                //Adds removeValue to queue
-                _callQueue.push(constraintCall(0,i,_xPy[i*_n+j],1));
             }
+            _x[i]->remove(_xPy[i*_n+j]);
         }
     }
     _yub[j]=_y[j]->max();
+}
+
+void StableMatching::inst(int i, int isMan){
+    int j;
+    if(isMan){
+        for(int k=_xlb[i]; k<_x[i]->min();k++){
+            j = _xpl[i][k];
+            if (_y[j]->max()>_yPx[j*_n+i]-1){
+                _y[j]->removeAbove(_yPx[j*_n+i]-1);
+                //Adds deltaMax to queue
+                _callQueue.push(constraintCall(2,j,0,0));
+            }
+        }
+        j = _xpl[i][_x[i]->min()];
+        /*if(!(_y[j]->isBound()&&_y[j]->min()==_yPx[j*_n+i])){ //commented out to have the same steps of the parallel constraint
+            _y[j]->assign(_yPx[j*_n+i]);
+            //Adds inst to queue
+            _callQueue.push(constraintCall(3,j,0,0));
+        }*/
+        if(_y[j]->max()>_yPx[j*_n+i]){
+            _y[j]->removeAbove(_yPx[j*_n+i]);
+            _callQueue.push(constraintCall(2,j,0,0));
+        }
+        for(int k = _x[i]->min()+1; k<=_xub[i]; k++){
+            j = _xpl[i][k];
+            if(_y[j]->contains(_yPx[j*_n+i])){
+                if(_y[j]->max()==_yPx[j*_n+i]){
+                    //Adds deltaMax to queue
+                    _callQueue.push(constraintCall(2,j,0,0));
+                }
+                _y[j]->remove(_yPx[j*_n+i]);
+            }
+        }
+        _xlb[i] = _x[i]->min();
+    } else {
+        for(int k=_ylb[i]; k<_y[i]->min();k++){
+            j = _ypl[i][k];
+            if(_x[j]->contains(_xPy[j*_n+i])){
+                if(_x[j]->min()==_xPy[j*_n+i]){
+                    //Adds deltaMin to queue
+                    _callQueue.push(constraintCall(1,j,0,0));
+                }
+                _x[j]->remove(_xPy[j*_n+i]);
+            }
+        }
+        j = _ypl[i][_y[i]->min()];
+        /*if(!(_x[j]->isBound()&&_x[j]->min()==_xPy[j*_n+i])){ //commented out to have the same steps of the parallel constraint
+            _x[j]->assign(_xPy[j*_n+i]);
+            //Adds inst to queue
+            _callQueue.push(constraintCall(3,j,0,1));
+        }*/
+        if(_x[j]->min()<_xPy[j*_n+i]){
+            _x[j]->removeBelow(_xPy[j*_n+i]);
+            _callQueue.push(constraintCall(1,j,0,0));
+        }
+        for(int k = _y[i]->min()+1; k<=_yub[i]; k++){
+            j = _ypl[i][k];
+            if(_x[j]->contains(_xPy[j*_n+i])){
+                if(_x[j]->min()==_xPy[j*_n+i]){
+                    //Adds deltaMin to queue
+                    _callQueue.push(constraintCall(1,j,0,0));
+                }
+                _x[j]->remove(_xPy[j*_n+i]);
+            }
+        }
+        _yub[i]=_y[i]->max();
+    }
 }
 
 void StableMatching::init(){

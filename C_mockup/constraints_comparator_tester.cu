@@ -172,21 +172,29 @@ int serial_constraint(int n, int *xpl, int *ypl, uint32_t *x_domain, uint32_t *y
             freeSerialMemory(xPy, yPx, xlb, yub);
             return -1;
         }
-        if(getMin(n,x_domain,i)!=0){
-            queue.push(constraintCall(1,i,0,0));
-        }
-        if(getMax(n,y_domain,i)!=n-1){
-            queue.push(constraintCall(2,i,0,0));
-        }
-        for(int k=getMin(n,x_domain,i)+1;k<n;k++){
-            if(getDomainBit(x_domain,i,k,n)!=1){
-                queue.push(constraintCall(0,i,k,1));
+        if(getVal(n,x_domain,i)!=-1){ //man is bound
+            queue.push(constraintCall(3,i,0,1));
+        } else {
+            if(getMin(n,x_domain,i)!=0){
+                queue.push(constraintCall(1,i,0,0));
+            }
+            for(int k=getMin(n,x_domain,i)+1;k<n;k++){
+                if(getDomainBit(x_domain,i,k,n)!=1){
+                    queue.push(constraintCall(0,i,k,1));
+                }
             }
         }
-        //Applies remove value on the women too (this is missing from the original paper)
-        for(int k=0;k<getMax(n,y_domain,i);k++){
-            if(getDomainBit(y_domain,i,k,n)!=1){
-                queue.push(constraintCall(0,i,k,0));
+        if(getVal(n,y_domain,i)!=-1){ //woman is bound
+            queue.push(constraintCall(3,i,0,0));
+        } else {
+            if(getMax(n,y_domain,i)!=n-1){
+                queue.push(constraintCall(2,i,0,0));
+            }
+            //Applies remove value on the women too (this is missing from the original paper)
+            for(int k=0;k<getMax(n,y_domain,i);k++){
+                if(getDomainBit(y_domain,i,k,n)!=1){
+                    queue.push(constraintCall(0,i,k,0));
+                }
             }
         }
     }
@@ -229,6 +237,10 @@ void functionDispatcher(std::queue<constraintCall> *queue, int n, uint32_t* x_do
 
         case 2: // deltaMax
             deltaMax(c.ij,n,x_domain,y_domain,xpl,ypl,xPy,yPx,yub,queue);
+            break;
+        
+        case 3: // inst
+            inst(c.ij,n,c.isMan,x_domain,y_domain,xpl,ypl,xPy,yPx,xlb,yub,queue);
             break;
     }
     queue->pop();
