@@ -141,6 +141,19 @@ void StableMatchingGPU::post(){
     _length_men_stack = _n;
     _length_women_stack = _n;
 
+    //Checks variables for binding
+    int j;
+    for(int i=0;i<_n;i++){
+        if(_x[i]->isBound()){
+            j = _xpl[i*_n+_x[i]->min()];
+            _y[j]->assign(_yPx[j*_n+i]);
+        }
+        if(_y[i]->isBound()){
+            j = _ypl[i*_n+_y[i]->min()];
+            _x[j]->assign(_xPy[j*_n+i]);
+        }
+    }
+
     //Finds current maxes and mins
     for(int i=0; i<_n; i++){
         _min_women[i]=_y[i]->min();
@@ -230,6 +243,8 @@ void StableMatchingGPU::post(){
 void StableMatchingGPU::propagate(){
     //Prepare other data structures
     int _length_men_stack, _length_women_stack;
+    int j;
+    bool min_had_changed, size_had_changed;
     _length_men_stack = 0;
     _length_women_stack = 0;
     *_length_min_men_stack = 0;
@@ -242,10 +257,43 @@ void StableMatchingGPU::propagate(){
                 _stack_mod_min_men[*_length_min_men_stack]=i;
                 (*_length_min_men_stack)++;
             }
+            //Binding (optional for correctedness)
+            if(_x[i]->isBound()){ //binds the woman to whom the man is bound
+                j = _xpl[i*_n+_x[i]->min()];
+                if(j<i && _y[j]->size()==_y_old_sizes[j]){ //variable was not previously modified and won't be scanned again
+                    _y[j]->assign(_yPx[j*_n+i]);
+                    if(_y[j]->size()!=_y_old_sizes[j]){ //makes sure the assignment really had an effect
+                        _stack_mod_women[_length_women_stack]=j;
+                        _length_women_stack++;
+                    }
+                } else { //variable will be scanned later
+                    _y[j]->assign(_yPx[j*_n+i]);
+                }
+            }
+
         }
         if(_y[i]->size()!=_y_old_sizes[i]){ //if variable was modified (compares the sizes to avoid false positives given by changed())
             _stack_mod_women[_length_women_stack]=i;
             _length_women_stack++;
+            //Binding (optional for correctedness)
+            if(_y[i]->isBound()){ //binds the man to whom the woman is bound
+                j = _ypl[i*_n+_y[i]->min()];
+                if(j<=i){ //variable won't be scanned again
+                    min_had_changed = _x[j]->min()!=_old_min_men_trail[j];
+                    size_had_changed = _x[j]->size() != _x_old_sizes[j];
+                    _x[j]->assign(_xPy[j*_n+i]);
+                    if(!min_had_changed && _x[j]->min()!=_old_min_men_trail[j]){ //min wasn't marked as changed but it has just been modified
+                        _stack_mod_min_men[*_length_min_men_stack]=j;
+                        (*_length_min_men_stack)++;
+                    }
+                    if(!size_had_changed && _x[j]->size() != _x_old_sizes[j]){ //variable wasn't modified before but it now is
+                        _stack_mod_men[_length_men_stack]=j;
+                        _length_men_stack++;
+                    }
+                } else { //variable will be scanned later
+                    _x[j]->assign(_xPy[j*_n+i]);
+                }
+            }
         }
     }
     if(_length_men_stack+_length_women_stack==0){ //no variable needs to be updated: quits immediately

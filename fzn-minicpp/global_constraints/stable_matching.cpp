@@ -272,14 +272,10 @@ void StableMatching::inst(int i, int isMan){
             }
         }
         j = _xpl[i][_x[i]->min()];
-        /*if(!(_y[j]->isBound()&&_y[j]->min()==_yPx[j*_n+i])){ //commented out to have the same steps of the parallel constraint
+        if(!(_y[j]->isBound()&&_y[j]->min()==_yPx[j*_n+i])){
             _y[j]->assign(_yPx[j*_n+i]);
             //Adds inst to queue
             _callQueue.push(constraintCall(3,j,0,0));
-        }*/
-        if(_y[j]->max()>_yPx[j*_n+i]){
-            _y[j]->removeAbove(_yPx[j*_n+i]);
-            _callQueue.push(constraintCall(2,j,0,0));
         }
         for(int k = _x[i]->min()+1; k<=_xub[i]; k++){
             j = _xpl[i][k];
@@ -304,14 +300,10 @@ void StableMatching::inst(int i, int isMan){
             }
         }
         j = _ypl[i][_y[i]->min()];
-        /*if(!(_x[j]->isBound()&&_x[j]->min()==_xPy[j*_n+i])){ //commented out to have the same steps of the parallel constraint
+        if(!(_x[j]->isBound()&&_x[j]->min()==_xPy[j*_n+i])){
             _x[j]->assign(_xPy[j*_n+i]);
             //Adds inst to queue
             _callQueue.push(constraintCall(3,j,0,1));
-        }*/
-        if(_x[j]->min()<_xPy[j*_n+i]){
-            _x[j]->removeBelow(_xPy[j*_n+i]);
-            _callQueue.push(constraintCall(1,j,0,0));
         }
         for(int k = _y[i]->min()+1; k<=_yub[i]; k++){
             j = _ypl[i][k];
