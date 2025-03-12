@@ -140,9 +140,11 @@ void StableMatching::fillQueue(){
                 if(_x[i]->min()!=_xlb[i]){ //Check if min changed using xlb (more precise than changedMin())
                     _callQueue.push(constraintCall(1,i,0,0));
                 }
-                for(int k=_x[i]->min()+1;k<=_xub[i];k++){
-                    if(!_x[i]->contains(k)){
-                        _callQueue.push(constraintCall(0,i,k,1));
+                if(_x[i]->size()!=_x_old_sizes[i]-(_x[i]->min()-_xlb[i])){ //Check whether values greater than the current min have been removed
+                    for(int k=_x[i]->min()+1;k<=_xub[i];k++){
+                        if(!_x[i]->contains(k)){
+                            _callQueue.push(constraintCall(0,i,k,1));
+                        }
                     }
                 }
             }
@@ -155,9 +157,11 @@ void StableMatching::fillQueue(){
                     _callQueue.push(constraintCall(2,i,0,0));
                 }
                 //Applies remove value on the women too (this is missing from the original paper)
-                for(int k=_ylb[i];k<_y[i]->max();k++){
-                    if(!_y[i]->contains(k)){
-                        _callQueue.push(constraintCall(0,i,k,0));
+                if(_y[i]->size()!=_y_old_sizes[i]-(_yub[i]-_y[i]->max())){ //Check whether values smaller than the current max have been removed
+                    for(int k=_ylb[i];k<_y[i]->max();k++){
+                        if(!_y[i]->contains(k)){
+                            _callQueue.push(constraintCall(0,i,k,0));
+                        }
                     }
                 }
             }
