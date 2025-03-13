@@ -21,7 +21,7 @@ class StableMatching : public Constraint
     // The value (index) to be removed by removeValue
 
     int isMan;
-    // True if removeValue is working on a man, False if it's working on a woman
+    // True if removeValue or inst are working on a man, False if they're working on a woman
 
     // Constructor
     constraintCall(int function, int ij, int a, int isMan)
