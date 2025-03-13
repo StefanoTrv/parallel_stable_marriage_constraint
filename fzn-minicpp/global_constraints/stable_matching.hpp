@@ -15,7 +15,7 @@ class StableMatching : public Constraint
     int function;
 
     int ij;
-    // The man or woman interested
+    // The man or woman affected
 
     int a;
     // The value (index) to be removed by removeValue
