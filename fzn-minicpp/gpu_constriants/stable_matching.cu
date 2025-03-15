@@ -257,7 +257,7 @@ void StableMatchingGPU::propagate(){
                 _stack_mod_min_men[*_length_min_men_stack]=i;
                 (*_length_min_men_stack)++;
             }
-            //Binding (optional for correctedness)
+            //Binding (optional for correctness)
             if(_x[i]->isBound()){ //binds the woman to whom the man is bound
                 j = _xpl[i*_n+_x[i]->min()];
                 if(j<i && _y[j]->size()==_y_old_sizes[j]){ //variable was not previously modified and won't be scanned again
@@ -275,7 +275,7 @@ void StableMatchingGPU::propagate(){
         if(_y[i]->size()!=_y_old_sizes[i]){ //if variable was modified (compares the sizes to avoid false positives given by changed())
             _stack_mod_women[_length_women_stack]=i;
             _length_women_stack++;
-            //Binding (optional for correctedness)
+            //Binding (optional for correctness)
             if(_y[i]->isBound()){ //binds the man to whom the woman is bound
                 j = _ypl[i*_n+_y[i]->min()];
                 if(j<=i){ //variable won't be scanned again
