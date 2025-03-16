@@ -35,7 +35,7 @@ L'host si occupa di lanciare le diverse fasi di applicazione del vincolo.
 Le fasi sono le seguenti:
 - redere coerenti i domini: eliminare dai domini degli uomini le donne i cui domini non li contengono più, e viceversa
 - applicazione vera e propria del vincolo
-- finalizzazione della modifica dei domini e ripristino delle strutture dati
+- finalizzazione della modifica dei domini e aggiornamento delle strutture dati
 
 Fun1: rendere coerenti i domini:
 Vengono lanciati un numero di thread pari a length_men_stack + length_women_stack. Ad ogni thread è associato un uomo od una donna presenti in stack_mod_men o stack_mod_women; il thread conosce la persona a cui è associato usando i vettori di interi, il proprio numero di blocco, numero di thread nel blocco e la lunghezza dei vettori.
