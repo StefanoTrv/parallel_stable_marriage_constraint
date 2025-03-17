@@ -8,17 +8,20 @@ def main():
     parser = argparse.ArgumentParser("comparator")
     parser.add_argument("n", help="The size of the test instances, an integer.", type=int)
     parser.add_argument("number_of_tests", help="The number of tests to be executed on full domains, an integer.", type=int)
-    parser.add_argument("double_constraint", help="If there should be two mirrored constraints.", type=str)
+    #parser.add_argument("double_constraint", help="If there should be two mirrored constraints.", type=str)
+    parser.add_argument("force_binding", help="If the binding order must be forced.", type=str)
     args = parser.parse_args()
     n = args.n
     number_of_tests = args.number_of_tests
-    double_constraint = args.double_constraint.upper() == "TRUE"
+    #double_constraint = args.double_constraint.upper() == "TRUE"
+    double_constraint = False
+    force_binding = args.force_binding.upper() == "TRUE"
 
     empty_output_folder()
 
     errors = 0
     for i in range(number_of_tests):
-        write_input_files(n,True,double_constraint)
+        write_input_files(n,True,double_constraint,force_binding)
         result_serial = subprocess.run("minizinc --solver org.minicpp.minicpp serial_input.mzn", shell=True, capture_output=True, text=True)
         serial_output = result_serial.stdout
         serial_error_string = result_serial.stderr
@@ -49,7 +52,7 @@ def main():
         print("Testing completed. "+str(errors)+" errors were found.")
         
 
-def write_input_files(n : int, full_domains : bool, double_constraint : bool):
+def write_input_files(n : int, full_domains : bool, double_constraint : bool, force_binding : bool):
     serial_input = open("serial_input.mzn", "w")
     parallel_input = open("parallel_input.mzn", "w")
     serial_input.write("include \"stable_matching.mzn\";\ninclude \"minicpp.mzn\";\n\n")
@@ -97,12 +100,12 @@ def write_input_files(n : int, full_domains : bool, double_constraint : bool):
         serial_input.write("constraint stable_matching(["+women_var_list_string+"], ["+men_var_list_string+"], pw, pm) ::uniud;\n\n")
         parallel_input.write("constraint stable_matching(["+women_var_list_string+"], ["+men_var_list_string+"], pw, pm) ::gpu;\n\n")
 
-
-    #serial_input.write("solve :: seq_search([\n    int_search(["+men_var_list_string+"], input_order, indomain_min, complete),\n    int_search(["+women_var_list_string+"], input_order, indomain_max, complete)\n]) satisfy;\n")
-    #parallel_input.write("solve :: seq_search([\n    int_search(["+men_var_list_string+"], input_order, indomain_min, complete),\n    int_search(["+women_var_list_string+"], input_order, indomain_max, complete)\n]) satisfy;\n")
-
-    serial_input.write("solve satisfy;\n")
-    parallel_input.write("solve satisfy;\n")
+    if force_binding:
+        serial_input.write("solve :: seq_search([\n    int_search(["+women_var_list_string+"], input_order, indomain_max, complete),\n    int_search(["+men_var_list_string+"], input_order, indomain_min, complete)\n]) satisfy;\n")
+        parallel_input.write("solve :: seq_search([\n    int_search(["+women_var_list_string+"], input_order, indomain_max, complete),\n    int_search(["+men_var_list_string+"], input_order, indomain_min, complete)\n]) satisfy;\n")
+    else:
+        serial_input.write("solve satisfy;\n")
+        parallel_input.write("solve satisfy;\n")
 
     serial_input.close()
     parallel_input.close()
