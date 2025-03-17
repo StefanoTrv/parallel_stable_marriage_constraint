@@ -7,16 +7,18 @@ import os
 def main():
     parser = argparse.ArgumentParser("comparator")
     parser.add_argument("n", help="The size of the test instances, an integer.", type=int)
-    parser.add_argument("full_tests", help="The number of tests to be executed on full domains, an integer.", type=int)
+    parser.add_argument("number_of_tests", help="The number of tests to be executed on full domains, an integer.", type=int)
+    parser.add_argument("double_constraint", help="If there should be two mirrored constraints.", type=str)
     args = parser.parse_args()
     n = args.n
-    full_tests = args.full_tests
+    number_of_tests = args.number_of_tests
+    double_constraint = args.double_constraint.upper() == "TRUE"
 
     empty_output_folder()
 
     errors = 0
-    for i in range(full_tests):
-        write_input_files(n,True)
+    for i in range(number_of_tests):
+        write_input_files(n,True,double_constraint)
         result_serial = subprocess.run("minizinc --solver org.minicpp.minicpp serial_input.mzn", shell=True, capture_output=True, text=True)
         serial_output = result_serial.stdout
         serial_error_string = result_serial.stderr
@@ -34,19 +36,20 @@ def main():
             shutil.copyfile("parallel_input.mzn", "out/error_"+str(errors)+"_parallel.mzn")
             error_file = open("out/error_"+str(errors)+"_outputs.txt","w")
             error_file.write("Serial output:\n"+serial_output+"\n\nParallel output:\n"+parallel_output)
+            error_file.close()
             errors += 1
         if errors >= 20:
             print("Found 20 errors! Interrupting after "+str(i+1)+" tests.")
             return
         if i%25==0:
-            print("Completed test "+str(i)+" out of "+str(full_tests)+".")
+            print("Completed test "+str(i)+" out of "+str(number_of_tests)+".")
     if errors == 0:
-        print("Completed "+str(full_tests)+" tests without finding any error!")
+        print("Completed "+str(number_of_tests)+" tests without finding any error!")
     else:
         print("Testing completed. "+str(errors)+" errors were found.")
         
 
-def write_input_files(n : int, full_domains : bool):
+def write_input_files(n : int, full_domains : bool, double_constraint : bool):
     serial_input = open("serial_input.mzn", "w")
     parallel_input = open("parallel_input.mzn", "w")
     serial_input.write("include \"stable_matching.mzn\";\ninclude \"minicpp.mzn\";\n\n")
@@ -89,6 +92,11 @@ def write_input_files(n : int, full_domains : bool):
 
     serial_input.write("constraint stable_matching(["+men_var_list_string+"], ["+women_var_list_string+"], pm, pw) ::uniud;\n\n")
     parallel_input.write("constraint stable_matching(["+men_var_list_string+"], ["+women_var_list_string+"], pm, pw) ::gpu;\n\n")
+
+    if double_constraint:
+        serial_input.write("constraint stable_matching(["+women_var_list_string+"], ["+men_var_list_string+"], pw, pm) ::uniud;\n\n")
+        parallel_input.write("constraint stable_matching(["+women_var_list_string+"], ["+men_var_list_string+"], pw, pm) ::gpu;\n\n")
+
 
     #serial_input.write("solve :: seq_search([\n    int_search(["+men_var_list_string+"], input_order, indomain_min, complete),\n    int_search(["+women_var_list_string+"], input_order, indomain_max, complete)\n]) satisfy;\n")
     #parallel_input.write("solve :: seq_search([\n    int_search(["+men_var_list_string+"], input_order, indomain_min, complete),\n    int_search(["+women_var_list_string+"], input_order, indomain_max, complete)\n]) satisfy;\n")
