@@ -114,10 +114,6 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     buildReverseMatrix(_ypl_vector,_yPx);
     *_length_min_men_stack = 0; //for f1 we pretend that it's empty, then we fill it before f2
     *_new_length_min_men_stack = 0;
-    for (int i=0;i<_n;i++){
-        _stack_mod_men[i]=i;
-        _stack_mod_women[i]=i;
-    }
     for(int i=0;i<_n;i++){
         _old_min_men[i]=0;
         _old_min_women[i]=0;
@@ -125,21 +121,26 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
         _old_max_women[i]=_n-1;
     }
 
-    //Copy the data structures that won't be modified by post()
-    HANDLE_ERROR(cudaMemcpyAsync(_d_xpl, _xpl, (_n * _n * 4 + _n * 7) * sizeof(int), cudaMemcpyHostToDevice, _stream));
-
     //Get number of SMPs in the device
     int device;
     cudaGetDevice(&device);
     struct cudaDeviceProp props;
     cudaGetDeviceProperties(&props, device);
     _n_SMP = props.multiProcessorCount;
+
+    //Initializes _x_old_sizes and _y_old_sizes
+    for (int i=0; i<_n; i++)
+    {
+        _x_old_sizes.push_back(trail<int>(_x[0]->getSolver()->getStateManager(), _n));
+        _y_old_sizes.push_back(trail<int>(_x[0]->getSolver()->getStateManager(), _n));
+    }
 }
 
 void StableMatchingGPU::post(){
     int _length_men_stack, _length_women_stack;
-    _length_men_stack = _n;
-    _length_women_stack = _n;
+    _length_men_stack = 0;
+    _length_women_stack = 0;
+    fillStacks(&_length_men_stack,&_length_women_stack);
 
     //Checks variables for binding
     int j;
@@ -161,19 +162,11 @@ void StableMatchingGPU::post(){
         _max_women[i]=_y[i]->max();
     }
 
-    //Copies the remaining data structures
-    HANDLE_ERROR(cudaMemcpyAsync(_d_max_men, _max_men, (_n * 3 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
+    HANDLE_ERROR(cudaMemcpyAsync(_d_xpl, _xpl, (_n * _n * 4 + _n * 10 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
 
     //Initializes the update_counters, which allow for baktracking identification
     _propagation_counter_trail = trail<int>(_x[0]->getSolver()->getStateManager(), 0);
-    _propagation_counter = 1;
-
-    //Initializes _x_old_sizes and _y_old_sizes with wrong sizes, to force dumping of all variables (redundant, because _propagation_counter!=_propagation_counter_trail)
-    for (int i=0; i<_n; i++)
-    {
-        _x_old_sizes.push_back(trail<int>(_x[0]->getSolver()->getStateManager(), 0));
-        _y_old_sizes.push_back(trail<int>(_x[0]->getSolver()->getStateManager(), 0));
-    }
+    _propagation_counter = 1; // Mismatching values force dumping of all variables
 
     //Copy the domains
     dumpDomainsToBitset(_x, _x_domain, _old_min_men, _old_max_men,_x_old_sizes);
@@ -232,9 +225,8 @@ void StableMatchingGPU::post(){
     _propagation_counter_trail = 1;
     _propagation_counter = 1;
 
-    //Initializes _x_old_sizes and _y_old_sizes for the first propagation
-    for (int i=0; i<_n; i++)
-    {
+    //Updates _x_old_sizes and _y_old_sizes for the first propagation
+    for (int i=0; i<_n; i++){
         _x_old_sizes[i] = _x[i]->size();
         _y_old_sizes[i] = _y[i]->size();
     }
@@ -243,7 +235,6 @@ void StableMatchingGPU::post(){
 void StableMatchingGPU::propagate(){
     //Prepare other data structures
     int _length_men_stack, _length_women_stack;
-    int j;
     _length_men_stack = 0;
     _length_women_stack = 0;
     *_length_min_men_stack = 0;
@@ -317,8 +308,10 @@ void StableMatchingGPU::propagate(){
     }
 }
 
-void StableMatchingGPU::fillStacks(int* _length_men_stack, int* _length_women_stack){
-    bool min_had_changed, size_had_changed, j;
+void StableMatchingGPU::fillStacks(int* _length_men_stack, int* _length_women_stack)
+{
+    int j;
+    bool min_had_changed, size_had_changed;
     for (int i = 0; i < _n; i++)
     {
         if (_x[i]->size() != _x_old_sizes[i])

@@ -47,7 +47,6 @@ class StableMatchingGPU : public Constraint
         void post() override;
         void propagate() override;
 
-
     protected:
         void buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz);
         void copyPreferenceMatrix(std::vector<std::vector<int>> zpl, int *zPz);
