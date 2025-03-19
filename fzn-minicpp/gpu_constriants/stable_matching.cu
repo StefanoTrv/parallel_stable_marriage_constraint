@@ -244,58 +244,11 @@ void StableMatchingGPU::propagate(){
     //Prepare other data structures
     int _length_men_stack, _length_women_stack;
     int j;
-    bool min_had_changed, size_had_changed;
     _length_men_stack = 0;
     _length_women_stack = 0;
     *_length_min_men_stack = 0;
     *_new_length_min_men_stack = 0;
-    for(int i=0; i<_n; i++){
-        if(_x[i]->size()!=_x_old_sizes[i]){ //if variable was modified (compares the sizes to avoid false positives given by changed())
-            _stack_mod_men[_length_men_stack]=i;
-            _length_men_stack++;
-            if(_x[i]->min()!=_old_min_men_trail[i]){ //if min is changed (this comparison avoids false positives given by changedMin())
-                _stack_mod_min_men[*_length_min_men_stack]=i;
-                (*_length_min_men_stack)++;
-            }
-            //Binding (optional for correctness)
-            if(_x[i]->isBound()){ //binds the woman to whom the man is bound
-                j = _xpl[i*_n+_x[i]->min()];
-                if(j<i && _y[j]->size()==_y_old_sizes[j]){ //variable was not previously modified and won't be scanned again
-                    _y[j]->assign(_yPx[j*_n+i]);
-                    if(_y[j]->size()!=_y_old_sizes[j]){ //makes sure the assignment really had an effect
-                        _stack_mod_women[_length_women_stack]=j;
-                        _length_women_stack++;
-                    }
-                } else { //variable will be scanned later
-                    _y[j]->assign(_yPx[j*_n+i]);
-                }
-            }
-
-        }
-        if(_y[i]->size()!=_y_old_sizes[i]){ //if variable was modified (compares the sizes to avoid false positives given by changed())
-            _stack_mod_women[_length_women_stack]=i;
-            _length_women_stack++;
-            //Binding (optional for correctness)
-            if(_y[i]->isBound()){ //binds the man to whom the woman is bound
-                j = _ypl[i*_n+_y[i]->min()];
-                if(j<=i){ //variable won't be scanned again
-                    min_had_changed = _x[j]->min()!=_old_min_men_trail[j];
-                    size_had_changed = _x[j]->size() != _x_old_sizes[j];
-                    _x[j]->assign(_xPy[j*_n+i]);
-                    if(!min_had_changed && _x[j]->min()!=_old_min_men_trail[j]){ //min wasn't marked as changed but it has just been modified
-                        _stack_mod_min_men[*_length_min_men_stack]=j;
-                        (*_length_min_men_stack)++;
-                    }
-                    if(!size_had_changed && _x[j]->size() != _x_old_sizes[j]){ //variable wasn't modified before but it now is
-                        _stack_mod_men[_length_men_stack]=j;
-                        _length_men_stack++;
-                    }
-                } else { //variable will be scanned later
-                    _x[j]->assign(_xPy[j*_n+i]);
-                }
-            }
-        }
-    }
+    fillStacks(&_length_men_stack, &_length_women_stack);
     if(_length_men_stack+_length_women_stack==0){ //no variable needs to be updated: quits immediately
         return;
     }
@@ -361,6 +314,71 @@ void StableMatchingGPU::propagate(){
     for(int i=0; i<_n; i++){
         _x_old_sizes[i]=_x[i]->size();
         _y_old_sizes[i]=_y[i]->size();
+    }
+}
+
+void StableMatchingGPU::fillStacks(int* _length_men_stack, int* _length_women_stack){
+    bool min_had_changed, size_had_changed, j;
+    for (int i = 0; i < _n; i++)
+    {
+        if (_x[i]->size() != _x_old_sizes[i])
+        { // if variable was modified (compares the sizes to avoid false positives given by changed())
+            _stack_mod_men[*_length_men_stack] = i;
+            (*_length_men_stack)++;
+            if (_x[i]->min() != _old_min_men_trail[i])
+            { // if min is changed (this comparison avoids false positives given by changedMin())
+                _stack_mod_min_men[*_length_min_men_stack] = i;
+                (*_length_min_men_stack)++;
+            }
+            // Binding (optional for correctness)
+            if (_x[i]->isBound())
+            { // binds the woman to whom the man is bound
+                j = _xpl[i * _n + _x[i]->min()];
+                if (j < i && _y[j]->size() == _y_old_sizes[j])
+                { // variable was not previously modified and won't be scanned again
+                    _y[j]->assign(_yPx[j * _n + i]);
+                    if (_y[j]->size() != _y_old_sizes[j])
+                    { // makes sure the assignment really had an effect
+                        _stack_mod_women[*_length_women_stack] = j;
+                        (*_length_women_stack)++;
+                    }
+                }
+                else
+                { // variable will be scanned later
+                    _y[j]->assign(_yPx[j * _n + i]);
+                }
+            }
+        }
+        if (_y[i]->size() != _y_old_sizes[i])
+        { // if variable was modified (compares the sizes to avoid false positives given by changed())
+            _stack_mod_women[*_length_women_stack] = i;
+            (*_length_women_stack)++;
+            // Binding (optional for correctness)
+            if (_y[i]->isBound())
+            { // binds the man to whom the woman is bound
+                j = _ypl[i * _n + _y[i]->min()];
+                if (j <= i)
+                { // variable won't be scanned again
+                    min_had_changed = _x[j]->min() != _old_min_men_trail[j];
+                    size_had_changed = _x[j]->size() != _x_old_sizes[j];
+                    _x[j]->assign(_xPy[j * _n + i]);
+                    if (!min_had_changed && _x[j]->min() != _old_min_men_trail[j])
+                    { // min wasn't marked as changed but it has just been modified
+                        _stack_mod_min_men[*_length_min_men_stack] = j;
+                        (*_length_min_men_stack)++;
+                    }
+                    if (!size_had_changed && _x[j]->size() != _x_old_sizes[j])
+                    { // variable wasn't modified before but it now is
+                        _stack_mod_men[*_length_men_stack] = j;
+                        (*_length_men_stack)++;
+                    }
+                }
+                else
+                { // variable will be scanned later
+                    _x[j]->assign(_xPy[j * _n + i]);
+                }
+            }
+        }
     }
 }
 

@@ -46,7 +46,8 @@ class StableMatchingGPU : public Constraint
         StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector<var<int>::Ptr> & w, std::vector<std::vector<int>> const & pm, std::vector<std::vector<int>> const & pw);
         void post() override;
         void propagate() override;
-    
+
+
     protected:
         void buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz);
         void copyPreferenceMatrix(std::vector<std::vector<int>> zpl, int *zPz);
@@ -56,6 +57,7 @@ class StableMatchingGPU : public Constraint
         void updateHostData();
         void getBlockNumberAndDimension(int n_threads, int *block_size, int *n_blocks);
         void iterateFun2();
+        void fillStacks(int* _length_men_stack, int* _length_women_stack);
 };
 
 
