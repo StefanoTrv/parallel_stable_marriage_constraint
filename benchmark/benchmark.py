@@ -41,7 +41,7 @@ def run_tests(n : int, number_of_tests : int, force_order : bool, double_constra
         if parallel_error_string != "" or "ERROR" in parallel_output:
             print("Execution of solver with parallel constraint ended in error! Terminating...\nError details:\n"+parallel_error_string)
             sys.exit(1)
-        if not double_constraint and serial_output.split("time elapsed")[0]!=parallel_output.split("time elapsed")[0]:
+        if serial_output.split("time elapsed")[0]!=parallel_output.split("time elapsed")[0]:
             print("Found error!")
             print(serial_output)
             print(parallel_output)

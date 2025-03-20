@@ -255,6 +255,10 @@ void StableMatchingGPU::propagate(){
         _max_women[i]=_y[i]->max();
     }
 
+    // Restores the pointers to the mod_min_men stacks
+    _d_stack_mod_min_men = _d_stack_mod_women + _n;
+    _d_new_stack_mod_min_men = _d_new_length_min_men_stack + 1;
+
     HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_men, _stack_mod_men, (_n * 10 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
 
     //Copy domains to device

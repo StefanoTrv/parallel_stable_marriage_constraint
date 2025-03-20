@@ -8,13 +8,12 @@ def main():
     parser = argparse.ArgumentParser("comparator")
     parser.add_argument("n", help="The size of the test instances, an integer.", type=int)
     parser.add_argument("number_of_tests", help="The number of tests to be executed on full domains, an integer.", type=int)
-    #parser.add_argument("double_constraint", help="If there should be two mirrored constraints.", type=str)
+    parser.add_argument("double_constraint", help="If there should be two mirrored constraints.", type=str)
     parser.add_argument("force_binding", help="If the binding order must be forced.", type=str)
     args = parser.parse_args()
     n = args.n
     number_of_tests = args.number_of_tests
-    #double_constraint = args.double_constraint.upper() == "TRUE"
-    double_constraint = False
+    double_constraint = args.double_constraint.upper() == "TRUE"
     force_binding = args.force_binding.upper() == "TRUE"
 
     empty_output_folder()
