@@ -194,8 +194,9 @@ void StableMatchingGPU::post(){
     }
     HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_min_men, _stack_mod_min_men, sizeof(int) * _n, cudaMemcpyHostToDevice, _stream));
     HANDLE_ERROR(cudaMemcpyAsync(_d_length_min_men_stack, _length_min_men_stack, sizeof(int), cudaMemcpyHostToDevice, _stream));
-
-    iterateFun2();
+    if(*_length_min_men_stack>0){
+        iterateFun2();
+    }
 
     //Fun3
     n_threads = _n;
