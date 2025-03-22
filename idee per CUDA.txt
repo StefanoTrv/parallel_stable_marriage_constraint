@@ -74,14 +74,16 @@ Si noti che i thread non comunicano fra loro quando trovano un dominio che è st
 Si noti inoltre che i i valori di old_min_men non vengono scritti con una operazione atomica di atomicMax, per cui potrebbero essere diminuiti invece che aumentati. Questa possibilità però non inficia sulla correttezza dell'algoritmo, e da prove empiriche si è trovato che i casi in cui l'atomicMax sarebbe stato efficacie (ovvero il valore di old_min_men viene diminuito) sono estremamente rari. Si è dunque scelto di non utilizzare in questo punto operazioni atomiche, supponendo che il loro effetto sarebbe stato deleterio per le prestazioni.
 
 Fun3: finalizzazione della modifica dei domini e ripristino delle strutture dati:
-Viene lanciato un thread per ogni donna, ovvero n thread. Quindi il thread imposta a 0 i bit del dominio della sua donna w compresi tra max_women[w] (escluso) e old_max_women[w] (incluso), operando il più possibile a livello di parola, così da ridurre il numero di operazioni neccessarie (quindi usando eventualmente una mask in AND per la prima e l'ultima parola e settando tutte le successive a 0, gestendo il caso in cui l'ultima parola contiene il dominio della prossima persona).
-(Nel caso simmetrico, si fa la stessa cosa per i massimi degli uomini.)
+Vengono lanciati n thread, in modo che ad ogni kernel sia associato un i-esimo uomo e una i-esima donna.
 Quindi ogni thread aggiorna, per un i-esimo uomo e una i-esima donna, old_max_men, old_min_women e old_max_women con i nuovi massimi e minimi (si noti che nel caso asimmetrico i valori in max_men e min_women possono essere valori peggiori dei massimi e dei minimi reali, quindi è necessario scorrere i domini a partire da questi punti per assicurarsi di trovare i valori reali; per old_max_women è sufficiente leggere il valore di max_women). Non è necessario aggiornare old_min_men perché è tenuto aggiornato da f2.
 
 Al termine, i domini e i vettori old vengono trasferiti dalla memoria dell'host a quella del device.
 
 Si noti che, al termine di f3, le varie strutture dati potrebbero contenere valori non corretti nel caso fosse stato trovato un dominio vuoto. In questo caso è garantita la correttezza solo dei domini e del vettore old_min_men rispetto al dominio.
 
+È importante notare che non è necessario togliere dalle donne i valori che seguono i loro nuovi massimi. Infatti l'host può scoprire il nuovo massimo semplicemente leggendo il valore di old_max_women dopo l'esecuzione dei kernel. I kernel, invece, non cercheranno mai di accedere ai quei valori in futuro.
+Se fosse necessario eliminare questi valori, si procederebbe in questo modo. Il thread imposta a 0 i bit del dominio della sua donna w compresi tra max_women[w] (escluso) e old_max_women[w] (incluso), operando il più possibile a livello di parola, così da ridurre il numero di operazioni neccessarie (quindi usando eventualmente una mask in AND per la prima e l'ultima parola e settando tutte le successive a 0, gestendo il caso in cui l'ultima parola contiene il dominio della prossima persona).
+(Nel caso simmetrico, si fa la stessa cosa per i massimi degli uomini.)
 
 ███    ██  ██████  ████████ ███████    
 ████   ██ ██    ██    ██    ██      ██ 
