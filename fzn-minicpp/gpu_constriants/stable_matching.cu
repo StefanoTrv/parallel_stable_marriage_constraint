@@ -673,7 +673,7 @@ __global__ void finalize_changes(int n, uint32_t* x_domain, uint32_t* y_domain, 
     }
 
     //finalizes women's domains
-    int domain_offset = n * id;
+    /*int domain_offset = n * id;
     int first_bit_index = max_women[id]+1 + domain_offset; //need to add offset to find the domain of current woman, not the first one
     int last_bit_index = old_max_women[id] + domain_offset;
     int span = last_bit_index - first_bit_index + 1;
@@ -694,7 +694,7 @@ __global__ void finalize_changes(int n, uint32_t* x_domain, uint32_t* y_domain, 
             span-=32; //marks some bits as added
             first_bit_index+=32; //new index for the first bit that still hasn't been updated
         }
-    }
+    }*/
 
     //updates old_max_men, old_min_women, old_max_women
     old_max_women[id]=max_women[id];
