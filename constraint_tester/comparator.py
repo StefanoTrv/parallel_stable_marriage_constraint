@@ -21,18 +21,18 @@ def main():
     errors = 0
     for i in range(number_of_tests):
         write_input_files(n,True,double_constraint,force_binding)
-        result_serial = subprocess.run("minizinc --solver org.minicpp.minicpp serial_input.mzn", shell=True, capture_output=True, text=True)
+        result_serial = subprocess.run("minizinc --solver ../fzn-minicpp/org.minicpp.minicpp.msc serial_input.mzn", shell=True, capture_output=True, text=True)
         serial_output = result_serial.stdout
-        serial_error_string = result_serial.stderr
-        if serial_error_string != "":
-            print("Execution of solver with serial constraint ended in error! Terminating...\nError details:\n"+serial_error_string)
-            return
-        result_parallel = subprocess.run("minizinc --solver org.minicpp.minicpp parallel_input.mzn", shell=True, capture_output=True, text=True)
+        #serial_error_string = result_serial.stderr
+        #if serial_error_string != "":
+        #    print("Execution of solver with serial constraint ended in error! Terminating...\nError details:\n"+serial_error_string)
+        #    return
+        result_parallel = subprocess.run("minizinc --solver ../fzn-minicpp/org.minicpp.minicpp.msc parallel_input.mzn", shell=True, capture_output=True, text=True)
         parallel_output = result_parallel.stdout
-        parallel_error_string = result_parallel.stderr
-        if parallel_error_string != "":
-            print("Execution of solver with parallel constraint ended in error! Terminating...\nError details:\n"+parallel_error_string)
-            return
+        #parallel_error_string = result_parallel.stderr
+        #if parallel_error_string != "":
+        #    print("Execution of solver with parallel constraint ended in error! Terminating...\nError details:\n"+parallel_error_string)
+        #    return
         if(serial_output != parallel_output):
             shutil.copyfile("serial_input.mzn", "out/error_"+str(errors)+"_serial.mzn")
             shutil.copyfile("parallel_input.mzn", "out/error_"+str(errors)+"_parallel.mzn")
