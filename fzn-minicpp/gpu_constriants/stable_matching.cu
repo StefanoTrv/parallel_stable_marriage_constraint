@@ -129,8 +129,7 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     _n_SMP = props.multiProcessorCount;
 
     //Initializes _x_old_sizes and _y_old_sizes
-    for (int i=0; i<_n; i++)
-    {
+    for (int i=0; i<_n; i++){
         _x_old_sizes.push_back(trail<int>(_x[0]->getSolver()->getStateManager(), _n));
         _y_old_sizes.push_back(trail<int>(_x[0]->getSolver()->getStateManager(), _n));
     }
@@ -141,19 +140,6 @@ void StableMatchingGPU::post(){
     _length_men_stack = 0;
     _length_women_stack = 0;
     fillStacks(&_length_men_stack,&_length_women_stack);
-
-    //Checks variables for binding
-    int j;
-    for(int i=0;i<_n;i++){
-        if(_x[i]->isBound()){
-            j = _xpl[i*_n+_x[i]->min()];
-            _y[j]->assign(_yPx[j*_n+i]);
-        }
-        if(_y[i]->isBound()){
-            j = _ypl[i*_n+_y[i]->min()];
-            _x[j]->assign(_xPy[j*_n+i]);
-        }
-    }
 
     //Finds current maxes and mins
     for(int i=0; i<_n; i++){
@@ -314,24 +300,19 @@ void StableMatchingGPU::propagate(){
     }
 }
 
-void StableMatchingGPU::fillStacks(int* _length_men_stack, int* _length_women_stack)
-{
+void StableMatchingGPU::fillStacks(int* _length_men_stack, int* _length_women_stack){
     int j;
     bool min_had_changed, size_had_changed;
-    for (int i = 0; i < _n; i++)
-    {
-        if (_x[i]->size() != _x_old_sizes[i])
-        { // if variable was modified (compares the sizes to avoid false positives given by changed())
+    for (int i = 0; i < _n; i++){
+        if (_x[i]->size() != _x_old_sizes[i]){ // if variable was modified (compares the sizes to avoid false positives given by changed())
             _stack_mod_men[*_length_men_stack] = i;
             (*_length_men_stack)++;
-            if (_x[i]->min() != _old_min_men_trail[i])
-            { // if min is changed (this comparison avoids false positives given by changedMin())
+            if (_x[i]->min() != _old_min_men_trail[i]){ // if min is changed (this comparison avoids false positives given by changedMin())
                 _stack_mod_min_men[*_length_min_men_stack] = i;
                 (*_length_min_men_stack)++;
             }
             // Binding (optional for correctness)
-            if (_x[i]->isBound())
-            { // binds the woman to whom the man is bound
+            if (_x[i]->isBound()){ // binds the woman to whom the man is bound
                 j = _xpl[i * _n + _x[i]->min()];
                 if (j < i && _y[j]->size() == _y_old_sizes[j])
                 { // variable was not previously modified and won't be scanned again
@@ -342,38 +323,31 @@ void StableMatchingGPU::fillStacks(int* _length_men_stack, int* _length_women_st
                         (*_length_women_stack)++;
                     }
                 }
-                else
-                { // variable will be scanned later
+                else{ // variable will be scanned later
                     _y[j]->assign(_yPx[j * _n + i]);
                 }
             }
         }
-        if (_y[i]->size() != _y_old_sizes[i])
-        { // if variable was modified (compares the sizes to avoid false positives given by changed())
+        if (_y[i]->size() != _y_old_sizes[i]){ // if variable was modified (compares the sizes to avoid false positives given by changed())
             _stack_mod_women[*_length_women_stack] = i;
             (*_length_women_stack)++;
             // Binding (optional for correctness)
-            if (_y[i]->isBound())
-            { // binds the man to whom the woman is bound
+            if (_y[i]->isBound()){ // binds the man to whom the woman is bound
                 j = _ypl[i * _n + _y[i]->min()];
-                if (j <= i)
-                { // variable won't be scanned again
+                if (j <= i){ // variable won't be scanned again
                     min_had_changed = _x[j]->min() != _old_min_men_trail[j];
                     size_had_changed = _x[j]->size() != _x_old_sizes[j];
                     _x[j]->assign(_xPy[j * _n + i]);
-                    if (!min_had_changed && _x[j]->min() != _old_min_men_trail[j])
-                    { // min wasn't marked as changed but it has just been modified
+                    if (!min_had_changed && _x[j]->min() != _old_min_men_trail[j]){ // min wasn't marked as changed but it has just been modified
                         _stack_mod_min_men[*_length_min_men_stack] = j;
                         (*_length_min_men_stack)++;
                     }
-                    if (!size_had_changed && _x[j]->size() != _x_old_sizes[j])
-                    { // variable wasn't modified before but it now is
+                    if (!size_had_changed && _x[j]->size() != _x_old_sizes[j]){ // variable wasn't modified before but it now is
                         _stack_mod_men[*_length_men_stack] = j;
                         (*_length_men_stack)++;
                     }
                 }
-                else
-                { // variable will be scanned later
+                else{ // variable will be scanned later
                     _x[j]->assign(_xPy[j * _n + i]);
                 }
             }
