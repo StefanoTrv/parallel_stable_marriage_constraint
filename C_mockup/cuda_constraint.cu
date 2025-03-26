@@ -105,7 +105,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
                 //printf("Caso2 for man %i (thread %i): RETURNING\n", m, id);
 
                 return;//the thread has no free man to find a woman for
-            } else {//m_val<p, that is w prefers m to p
+            } else {//m_val<p_val, that is w prefers m to p
                 succ_val = m_val + 1;
                 while(succ_val<=p_val){
                     succ = ypl[w*n+succ_val];
