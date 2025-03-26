@@ -383,7 +383,7 @@ void StableMatchingGPU::dumpDomainsToBitset(std::vector<var<int>::Ptr> vars, uin
             continue;
         }
 
-        //Note: During the first dump, all the domains will be reset.
+        //Note: During the first dump, all the domains' bitsets will be completely overwritten.
         var_min = old_mins[i];
         var_max = old_maxes[i];
 
