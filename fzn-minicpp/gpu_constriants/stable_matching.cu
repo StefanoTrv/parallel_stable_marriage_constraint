@@ -314,8 +314,7 @@ void StableMatchingGPU::fillStacks(int* _length_men_stack, int* _length_women_st
             // Binding (optional for correctness)
             if (_x[i]->isBound()){ // binds the woman to whom the man is bound
                 j = _xpl[i * _n + _x[i]->min()];
-                if (j < i && _y[j]->size() == _y_old_sizes[j])
-                { // variable was not previously modified and won't be scanned again
+                if (j < i && _y[j]->size() == _y_old_sizes[j]){ // variable was not previously modified and won't be scanned again
                     _y[j]->assign(_yPx[j * _n + i]);
                     if (_y[j]->size() != _y_old_sizes[j])
                     { // makes sure the assignment really had an effect
@@ -584,7 +583,6 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
         //finds the first woman remaining in m's domain/list
         w_index = old_min_men[m];
         if(w_index>max_men[m]){//empty domain
-            old_min_men[m]=n;
             return;
         }else if(getDomainBitCuda(x_domain,m,w_index,n)){//value in domain
             w = xpl[m*n+w_index];

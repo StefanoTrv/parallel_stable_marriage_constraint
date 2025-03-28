@@ -79,7 +79,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
         w_index = old_min_men[m];
         //printf("w_index for man %i (thread %i): %i\n", m, id, w_index);
         if(w_index>max_men[m]){//empty domain
-            old_min_men[m]=n;
+            old_min_men[m]=n; //not needed in the real constraint
             //printf("EMPTY DOMAIN\n");
             return;
         }else if(getDomainBit2(x_domain,m,w_index,n)){//value in domain
