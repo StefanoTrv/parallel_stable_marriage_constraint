@@ -70,14 +70,14 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     _old_max_men = _old_min_men + _n;
     _old_min_women = _old_max_men + _n;
     _old_max_women = _old_min_women + _n;
-    _stack_mod_min_men = _old_max_women + _n;
+    _max_men = _old_max_women + _n;
+    _min_women = _max_men + _n;
+    _max_women = _min_women + _n;
+    _stack_mod_min_men = _max_women + _n;
     _length_min_men_stack = _stack_mod_min_men + _n;
     _new_length_min_men_stack = _length_min_men_stack + 1;
     _stack_mod_men = _new_length_min_men_stack + 1;
     _stack_mod_women = _stack_mod_men + _n;
-    _max_men = _stack_mod_women + _n;
-    _min_women = _max_men + _n;
-    _max_women = _min_women + _n;
 
     //Device memory allocation
     HANDLE_ERROR(cudaMalloc((void**)&_d_xpl, sizeof(int) * (_n * _n * 4 + _n * 12 + 2)));
@@ -88,15 +88,15 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     _d_old_max_men = _d_old_min_men + _n;
     _d_old_min_women = _d_old_max_men + _n;
     _d_old_max_women = _d_old_min_women + _n;
-    _d_stack_mod_min_men = _d_old_max_women + _n;
+    _d_max_men = _d_old_max_women + _n;
+    _d_min_women = _d_max_men + _n;
+    _d_max_women = _d_min_women + _n;
+    _d_stack_mod_min_men = _d_max_women + _n;
     _d_length_min_men_stack = _d_stack_mod_min_men + _n;
     _d_new_length_min_men_stack = _d_length_min_men_stack + 1;
     _d_stack_mod_men = _d_new_length_min_men_stack + 1;
     _d_stack_mod_women = _d_stack_mod_men + _n;
-    _d_max_men = _d_stack_mod_women + _n;
-    _d_min_women = _d_max_men + _n;
-    _d_max_women = _d_min_women + _n;
-    _d_new_stack_mod_min_men = _d_max_women + _n;
+    _d_new_stack_mod_min_men = _d_stack_mod_women + _n;
     _d_array_min_mod_men = _d_new_stack_mod_min_men + _n;
     
     //Initialize trailable vectors
@@ -234,9 +234,10 @@ void StableMatchingGPU::propagate(){
     }
 
     // Restores the pointers to the mod_min_men stacks
-    _d_stack_mod_min_men = _d_old_max_women + _n;
-    _d_new_stack_mod_min_men = _d_max_women + _n;
+    _d_stack_mod_min_men = _d_max_women + _n;
+    _d_new_stack_mod_min_men = _d_stack_mod_women + _n;
 
+    //copies old bounds arrays if needed, currente bounds arrays, and stack_mod_min_men
     if(_propagation_counter_trail != _propagation_counter){ //has backtracked
         for(int i=0;i<_n;i++){
             _old_min_men[i]=_old_min_men_trail[i];
@@ -244,13 +245,17 @@ void StableMatchingGPU::propagate(){
             _old_max_men[i]=_old_max_men_trail[i];
             _old_max_women[i]=_old_max_women_trail[i];
         }
-        HANDLE_ERROR(cudaMemcpyAsync(_d_old_min_men, _old_min_men, (_n * 10 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
+        HANDLE_ERROR(cudaMemcpyAsync(_d_old_min_men, _old_min_men, (_n * 7 + *_length_min_men_stack) * sizeof(int), cudaMemcpyHostToDevice, _stream));
     }else{ //has not backtracked
-        if(*_length_min_men_stack>0){
-            HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_min_men, _stack_mod_min_men, (_n * 6 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
-        }else{
-            HANDLE_ERROR(cudaMemcpyAsync(_d_length_min_men_stack, _length_min_men_stack, (_n * 5 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
-        }
+        HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_min_men, _stack_mod_min_men, (_n * 3 + *_length_min_men_stack) * sizeof(int), cudaMemcpyHostToDevice, _stream));
+    }
+    
+    //copies length_min_men_stack, new_length_min_men_stack and stack_mod_men (if not empty)
+    HANDLE_ERROR(cudaMemcpyAsync(_d_length_min_men_stack, _length_min_men_stack, (2 + _length_men_stack) * sizeof(int), cudaMemcpyHostToDevice, _stream));
+
+    //copies stack_mod_women
+    if(_length_women_stack>0){
+        HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_women, _stack_mod_women, (_length_women_stack) * sizeof(int), cudaMemcpyHostToDevice, _stream));
     }
 
     //Copy domains to device
