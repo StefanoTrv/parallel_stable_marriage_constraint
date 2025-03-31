@@ -237,7 +237,7 @@ void StableMatchingGPU::propagate(){
     _d_stack_mod_min_men = _d_max_women + _n;
     _d_new_stack_mod_min_men = _d_stack_mod_women + _n;
 
-    //copies old bounds arrays if needed, currente bounds arrays, and stack_mod_min_men
+    //copies old bounds arrays if needed, current bounds arrays, and stack_mod_min_men
     if(_propagation_counter_trail != _propagation_counter){ //has backtracked
         for(int i=0;i<_n;i++){
             _old_min_men[i]=_old_min_men_trail[i];
