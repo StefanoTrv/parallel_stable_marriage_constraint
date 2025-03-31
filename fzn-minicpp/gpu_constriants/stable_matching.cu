@@ -70,12 +70,12 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     _old_max_men = _old_min_men + _n;
     _old_min_women = _old_max_men + _n;
     _old_max_women = _old_min_women + _n;
-    _stack_mod_men = _old_max_women + _n;
-    _stack_mod_women = _stack_mod_men + _n;
-    _stack_mod_min_men = _stack_mod_women + _n;
+    _stack_mod_min_men = _old_max_women + _n;
     _length_min_men_stack = _stack_mod_min_men + _n;
     _new_length_min_men_stack = _length_min_men_stack + 1;
-    _max_men = _new_length_min_men_stack + 1;
+    _stack_mod_men = _new_length_min_men_stack + 1;
+    _stack_mod_women = _stack_mod_men + _n;
+    _max_men = _stack_mod_women + _n;
     _min_women = _max_men + _n;
     _max_women = _min_women + _n;
 
@@ -88,12 +88,12 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     _d_old_max_men = _d_old_min_men + _n;
     _d_old_min_women = _d_old_max_men + _n;
     _d_old_max_women = _d_old_min_women + _n;
-    _d_stack_mod_men = _d_old_max_women + _n;
-    _d_stack_mod_women = _d_stack_mod_men + _n;
-    _d_stack_mod_min_men = _d_stack_mod_women + _n;
+    _d_stack_mod_min_men = _d_old_max_women + _n;
     _d_length_min_men_stack = _d_stack_mod_min_men + _n;
     _d_new_length_min_men_stack = _d_length_min_men_stack + 1;
-    _d_max_men = _d_new_length_min_men_stack + 1;
+    _d_stack_mod_men = _d_new_length_min_men_stack + 1;
+    _d_stack_mod_women = _d_stack_mod_men + _n;
+    _d_max_men = _d_stack_mod_women + _n;
     _d_min_women = _d_max_men + _n;
     _d_max_women = _d_min_women + _n;
     _d_new_stack_mod_min_men = _d_max_women + _n;
@@ -234,7 +234,7 @@ void StableMatchingGPU::propagate(){
     }
 
     // Restores the pointers to the mod_min_men stacks
-    _d_stack_mod_min_men = _d_stack_mod_women + _n;
+    _d_stack_mod_min_men = _d_old_max_women + _n;
     _d_new_stack_mod_min_men = _d_max_women + _n;
 
     if(_propagation_counter_trail != _propagation_counter){ //has backtracked
@@ -246,7 +246,11 @@ void StableMatchingGPU::propagate(){
         }
         HANDLE_ERROR(cudaMemcpyAsync(_d_old_min_men, _old_min_men, (_n * 10 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
     }else{ //has not backtracked
-        HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_men, _stack_mod_men, (_n * 6 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
+        if(*_length_min_men_stack>0){
+            HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_min_men, _stack_mod_min_men, (_n * 6 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
+        }else{
+            HANDLE_ERROR(cudaMemcpyAsync(_d_length_min_men_stack, _length_min_men_stack, (_n * 5 + 2) * sizeof(int), cudaMemcpyHostToDevice, _stream));
+        }
     }
 
     //Copy domains to device
