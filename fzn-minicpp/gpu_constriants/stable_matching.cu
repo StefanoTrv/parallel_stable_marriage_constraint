@@ -167,7 +167,7 @@ void StableMatchingGPU::post(){
     int n_threads = _length_men_stack + _length_women_stack;
     int n_blocks, block_size;
     getBlockNumberAndDimension(n_threads,&block_size,&n_blocks);
-    make_domains_coherent<<<n_blocks,block_size,0,_stream>>>(_n,_d_xpl,_d_ypl,_d_xPy,_d_yPx,_d_x_domain,_d_y_domain, _d_stack_mod_men, _d_stack_mod_women, _length_men_stack, _length_women_stack, _d_stack_mod_min_men, _d_length_min_men_stack, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women);
+    make_domains_coherent<<<n_blocks,block_size,0,_stream>>>(_n, _d_xpl, _d_ypl, _d_xPy, _d_yPx, _d_x_domain, _d_y_domain, _d_stack_mod_men, _d_stack_mod_women, _length_men_stack, _length_women_stack, _d_stack_mod_min_men, _d_length_min_men_stack, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women);
 
     //Fun2
     //  empties d_array_min_mod_men
@@ -184,7 +184,7 @@ void StableMatchingGPU::post(){
     //Fun3
     n_threads = _n;
     getBlockNumberAndDimension(n_threads,&block_size,&n_blocks);
-    finalize_changes<<<n_blocks,block_size,0,_stream>>>(_n,_d_x_domain,_d_y_domain, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women, _d_max_men, _d_min_women, _d_max_women);
+    finalize_changes<<<n_blocks,block_size,0,_stream>>>(_n, _d_x_domain, _d_y_domain, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women, _d_max_men, _d_min_women, _d_max_women);
 
     /*
         Completed kernel execution (not yet synchronized)
@@ -270,7 +270,7 @@ void StableMatchingGPU::propagate(){
     int n_threads = _length_men_stack + _length_women_stack;
     int n_blocks, block_size;
     getBlockNumberAndDimension(n_threads,&block_size,&n_blocks);
-    make_domains_coherent<<<n_blocks,block_size,0,_stream>>>(_n,_d_xpl,_d_ypl,_d_xPy,_d_yPx,_d_x_domain,_d_y_domain, _d_stack_mod_men, _d_stack_mod_women, _length_men_stack, _length_women_stack, _d_stack_mod_min_men, _d_length_min_men_stack, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women);
+    make_domains_coherent<<<n_blocks,block_size,0,_stream>>>(_n, _d_xpl, _d_ypl, _d_xPy, _d_yPx, _d_x_domain, _d_y_domain, _d_stack_mod_men, _d_stack_mod_women, _length_men_stack, _length_women_stack, _d_stack_mod_min_men, _d_length_min_men_stack, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women);
 
     //Fun2
     //  empties d_array_min_mod_men
@@ -288,7 +288,7 @@ void StableMatchingGPU::propagate(){
     //Fun3
     n_threads = _n;
     getBlockNumberAndDimension(n_threads,&block_size,&n_blocks);
-    finalize_changes<<<n_blocks,block_size,0,_stream>>>(_n,_d_x_domain,_d_y_domain, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women, _d_max_men, _d_min_women, _d_max_women);
+    finalize_changes<<<n_blocks,block_size,0,_stream>>>(_n, _d_x_domain, _d_y_domain, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women, _d_max_men, _d_min_women, _d_max_women);
 
     /*
         Completed kernel execution (not yet synchronized)
