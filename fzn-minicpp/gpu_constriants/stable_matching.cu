@@ -7,45 +7,6 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
 __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* max_men, int* max_women);
 __global__ void finalize_changes(int n, uint32_t* x_domain, uint32_t* y_domain, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women);
 
-/*void print_domains(int n, uint32_t* x_dom, uint32_t* y_dom) {
-    int index, offset;
-    // Men
-    printf("\nMen domains:\n");
-    printf("_\t");
-    for (int i = 0; i < n; i++) {
-        printf("%d\t", i);
-    }
-    for (int i = 0; i < n; i++) {
-        printf("\n%d:\t", i);
-        for (int j = 0; j < n; j++) {
-            index = i*n+j;
-            offset = index % 32;
-            printf("%d\t", (x_dom[index/32] << offset) >> (sizeof (int)*8 - 1));
-        }
-        printf("\n");
-    }
-    
-    printf("\n");
-
-    // Women
-    printf("\nWomen domains:\n");
-    printf("_\t");
-    for (int i = 0; i < n; i++) {
-        printf("%d\t", i);
-    }
-    for (int i = 0; i < n; i++) {
-        printf("\n%d:\t", i);
-        for (int j = 0; j < n; j++) {
-            index = i*n+j;
-            offset = index % 32;
-            printf("%d\t", (y_dom[index/32] << offset) >> (sizeof (int)*8 - 1));
-        }
-        printf("\n");
-    }
-            
-    printf("\n\n");
-}*/
-
 StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector<var<int>::Ptr> & w, std::vector<std::vector<int>> const & mpl, std::vector<std::vector<int>> const & wpl) :
     Constraint(m[0]->getSolver()), _x(m), _y(w), _xpl_vector(mpl), _ypl_vector(wpl)
 {
