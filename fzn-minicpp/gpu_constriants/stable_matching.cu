@@ -1,5 +1,6 @@
 #include "stable_matching.cuh"
 #include "error_handler.cuh"
+#include <chrono>
 
 const uint32_t UNS_ONE = 1;
 
@@ -97,6 +98,8 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
 }
 
 void StableMatchingGPU::post(){
+    auto start = std::chrono::high_resolution_clock::now();
+
     int _length_men_stack, _length_women_stack;
     _length_men_stack = 0;
     _length_women_stack = 0;
@@ -175,9 +178,23 @@ void StableMatchingGPU::post(){
         _x_old_sizes[i] = _x[i]->size();
         _y_old_sizes[i] = _y[i]->size();
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    // Calculate the duration in microseconds
+    std::chrono::microseconds duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << duration.count() << ", " << _n * 2 << ", " << _n << ", post\n";
 }
 
 void StableMatchingGPU::propagate(){
+    int people_modified = 0;
+    for(int i=0; i<_n;i++){
+        if (_x[i]->size() != _x_old_sizes[i]){
+            people_modified++;
+        }
+        if (_y[i]->size() != _y_old_sizes[i]){
+            people_modified++;
+        }
+    }
+    auto start = std::chrono::high_resolution_clock::now();
     //Prepare other data structures
     int _length_men_stack, _length_women_stack;
     _length_men_stack = 0;
@@ -271,6 +288,10 @@ void StableMatchingGPU::propagate(){
         _x_old_sizes[i]=_x[i]->size();
         _y_old_sizes[i]=_y[i]->size();
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    // Calculate the duration in microseconds
+    std::chrono::microseconds duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << duration.count() << ", " << people_modified << ", " << _n << ", propagate\n";
 }
 
 void StableMatchingGPU::fillStacks(int* _length_men_stack, int* _length_women_stack){

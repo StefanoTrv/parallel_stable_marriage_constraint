@@ -5,6 +5,7 @@
 
 
 #include "stable_matching.hpp"
+#include <chrono>
 
 StableMatching::StableMatching(std::vector<var<int>::Ptr> & m, std::vector<var<int>::Ptr> & w, std::vector<std::vector<int>> const & mpl, std::vector<std::vector<int>> const & wpl) :
     Constraint(m[0]->getSolver()), _x(m), _y(w), _xpl(mpl), _ypl(wpl)
@@ -38,8 +39,10 @@ StableMatching::StableMatching(std::vector<var<int>::Ptr> & m, std::vector<var<i
 }
 
 void StableMatching::post(){
+    int people_modified = 0;
+    auto start = std::chrono::high_resolution_clock::now();
     //If domains are not full, adds the appropriate calls to the queue
-    fillQueue();
+    fillQueue(&people_modified);
 
     init();
 
@@ -60,15 +63,21 @@ void StableMatching::post(){
         _x_old_sizes[i]=_x[i]->size();
         _y_old_sizes[i]=_y[i]->size();
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    // Calculate the duration in microseconds
+    std::chrono::microseconds duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << duration.count() << ", " << _n * 2 << ", " << _n << ", post\n";
 }
 
 void StableMatching::propagate(){
+    int people_modified = 0;
+    auto start = std::chrono::high_resolution_clock::now();
     //Empties the queue in case of backtracking
     while(!_callQueue.empty()){
         _callQueue.pop();
     }
     
-    fillQueue();
+    fillQueue(&people_modified);
 
     propagateOnQueue();
 
@@ -77,6 +86,13 @@ void StableMatching::propagate(){
         _x_old_sizes[i]=_x[i]->size();
         _y_old_sizes[i]=_y[i]->size();
     }
+    if(people_modified==0){
+        return;
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    // Calculate the duration in microseconds
+    std::chrono::microseconds duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << duration.count() << ", " << people_modified << ", " << _n << ", propagate\n";
 }
 
 void StableMatching::buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz){
@@ -87,9 +103,10 @@ void StableMatching::buildReverseMatrix(std::vector<std::vector<int>> zpl, int *
     }
 }
 
-void StableMatching::fillQueue(){
+void StableMatching::fillQueue(int *people_modified){
     for(int i=0; i<_n; i++){
         if(_x[i]->size()!=_x_old_sizes[i]){ //variable for man was changed (its size has changed)
+            (*people_modified)++;
             if(_x[i]->isBound()){
                 _callQueue.push(constraintCall(3,i,0,1));
             } else {
@@ -106,6 +123,7 @@ void StableMatching::fillQueue(){
             }
         }
         if(_y[i]->size()!=_y_old_sizes[i]){ //variable for woman was changed (its size has changed)
+            (*people_modified)++;
             if(_y[i]->isBound()){
                 _callQueue.push(constraintCall(3,i,0,0));
             } else {
