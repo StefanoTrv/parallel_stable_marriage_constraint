@@ -31,8 +31,8 @@ def run_tests(n : int, number_of_tests : int, force_order : bool, double_constra
     for i in range(number_of_tests):
         write_input_files(n,force_order, double_constraint)
         # compile files
-        subprocess.run("minizinc --solver ../fzn-minicpp/org.minicpp.minicpp.msc serial_input.mzn --compile", shell=True, text=True)
-        subprocess.run("minizinc --solver ../fzn-minicpp/org.minicpp.minicpp.msc parallel_input.mzn --compile", shell=True, text=True)
+        subprocess.run("minizinc --solver ../fzn-minicpp/org.minicpp.minicpp.msc serial_input.mzn --compile", shell=True, capture_output=True, text=True)
+        subprocess.run("minizinc --solver ../fzn-minicpp/org.minicpp.minicpp.msc parallel_input.mzn --compile", shell=True, capture_output=True, text=True)
 
         result_serial = subprocess.run("../fzn-minicpp/build/fzn-minicpp serial_input.fzn", shell=True, capture_output=True, text=True)
         serial_output = result_serial.stdout.split("w")[0].split("m")[0]
