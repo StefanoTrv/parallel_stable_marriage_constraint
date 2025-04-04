@@ -181,11 +181,12 @@ void StableMatchingGPU::post(){
     auto end = std::chrono::high_resolution_clock::now();
     // Calculate the duration in microseconds
     std::chrono::microseconds duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << duration.count() << ", " << _n * 2 << ", " << _n << ", post\n";
+    std::cout << duration.count() << ", " << _n * 2 << ", " << _n <<  ", " << _n << ", post\n";
 }
 
 void StableMatchingGPU::propagate(){
     int people_modified = 0;
+    int initially_free_men;
     for(int i=0; i<_n;i++){
         if (_x[i]->size() != _x_old_sizes[i]){
             people_modified++;
@@ -262,6 +263,7 @@ void StableMatchingGPU::propagate(){
     // updates _length_min_men_stack
     HANDLE_ERROR(cudaMemcpyAsync(_length_min_men_stack, _d_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, _stream));
     cudaStreamSynchronize(_stream); // to be able to read _length_min_men_stack
+    initially_free_men = *_length_min_men_stack;
 
     
     if(*_length_min_men_stack>0){
@@ -291,7 +293,7 @@ void StableMatchingGPU::propagate(){
     auto end = std::chrono::high_resolution_clock::now();
     // Calculate the duration in microseconds
     std::chrono::microseconds duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << duration.count() << ", " << people_modified << ", " << _n << ", propagate\n";
+    std::cout << duration.count() << ", " << people_modified << ", " << _n <<  ", " << initially_free_men << ", propagate\n";
 }
 
 void StableMatchingGPU::fillStacks(int* _length_men_stack, int* _length_women_stack){
