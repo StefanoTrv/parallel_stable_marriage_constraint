@@ -34,13 +34,31 @@ def run_tests(n : int, number_of_tests : int, force_order : bool, double_constra
         subprocess.run("minizinc --solver ../fzn-minicpp/org.minicpp.minicpp.msc serial_input.mzn --compile", shell=True, capture_output=True, text=True)
         subprocess.run("minizinc --solver ../fzn-minicpp/org.minicpp.minicpp.msc parallel_input.mzn --compile", shell=True, capture_output=True, text=True)
 
-        result_serial = subprocess.run("../fzn-minicpp/build/fzn-minicpp serial_input.fzn", shell=True, capture_output=True, text=True)
+        #removes comments from compiled files
+        serial_input_clean = open("clean_serial_input.fzn","w")
+        parallel_input_clean = open("clean_parallel_input.fzn","w")
+        serial_input = open("serial_input.fzn","r")
+        parallel_input = open("parallel_input.fzn","r")
+        for l in serial_input:
+            if l[0]!="%":
+                serial_input_clean.write(l)
+        for l in parallel_input:
+            if l[0]!="%":
+                parallel_input_clean.write(l)
+        serial_input.close()
+        parallel_input.close()
+        serial_input_clean.close()
+        parallel_input_clean.close()
+        
+
+
+        result_serial = subprocess.run("../fzn-minicpp/build/fzn-minicpp clean_serial_input.fzn", shell=True, capture_output=True, text=True)
         serial_output = result_serial.stdout.split("w")[0].split("m")[0]
         #serial_error_string = result_serial.stderr
         #if serial_error_string != "" or "ERROR" in serial_output:
         #    print("Execution of solver with serial constraint ended in error! Terminating...\nError details:\n"+serial_error_string)
         #    sys.exit(1)
-        result_parallel = subprocess.run("../fzn-minicpp/build/fzn-minicpp parallel_input.fzn", shell=True, capture_output=True, text=True)
+        result_parallel = subprocess.run("../fzn-minicpp/build/fzn-minicpp clean_parallel_input.fzn", shell=True, capture_output=True, text=True)
         parallel_output = result_parallel.stdout.split("w")[0].split("m")[0]
         #parallel_error_string = result_parallel.stderr
         #if parallel_error_string != "" or "ERROR" in parallel_output:

@@ -71,3 +71,5 @@ single_propagation_benchmark/parallel_input.mzn
 single_propagation_benchmark/serial_input.mzn
 single_propagation_benchmark/parallel_input.fzn
 single_propagation_benchmark/serial_input.fzn
+single_propagation_benchmark/clean_parallel_input.fzn
+single_propagation_benchmark/clean_serial_input.fzn
