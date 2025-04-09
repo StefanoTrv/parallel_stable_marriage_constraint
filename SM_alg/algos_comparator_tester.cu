@@ -84,8 +84,6 @@ int main(int argc, char *argv[]) {
     free(wpl);
     free(mpl_cpy);
     free(wpl_cpy);
-
-    printf("Done!\n");
     return 0;
 }
 

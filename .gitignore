@@ -63,3 +63,7 @@ benchmark/out/
 benchmark/config.txt
 benchmark/parallel_input.mzn
 benchmark/serial_input.mzn
+
+#SM_alg
+SM_alg/out/
+SM_alg/config.txt
