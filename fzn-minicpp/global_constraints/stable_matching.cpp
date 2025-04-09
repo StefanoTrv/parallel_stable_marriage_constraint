@@ -66,11 +66,16 @@ void StableMatching::post(){
     auto end = std::chrono::high_resolution_clock::now();
     // Calculate the duration in microseconds
     std::chrono::microseconds duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << duration.count() << ", " << _n * 2 << ", " << _n << ", post\n";
+    std::cout << duration.count() << ", " << _n * 2 << ", " << _n << ", post, " << _n * _n <<"\n";
 }
 
 void StableMatching::propagate(){
     int people_modified = 0;
+    int cumulative_old_ranges = 0;
+    for(int i=0; i<_n;i++){
+        cumulative_old_ranges += _x_old_sizes[i];
+        cumulative_old_ranges += _y_old_sizes[i];
+    }
     auto start = std::chrono::high_resolution_clock::now();
     //Empties the queue in case of backtracking
     while(!_callQueue.empty()){
@@ -92,7 +97,7 @@ void StableMatching::propagate(){
     auto end = std::chrono::high_resolution_clock::now();
     // Calculate the duration in microseconds
     std::chrono::microseconds duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << duration.count() << ", " << people_modified << ", " << _n << ", propagate\n";
+    std::cout << duration.count() << ", " << people_modified << ", " << _n << ", propagate, " << cumulative_old_ranges << "\n";
 }
 
 void StableMatching::buildReverseMatrix(std::vector<std::vector<int>> zpl, int *zPz){

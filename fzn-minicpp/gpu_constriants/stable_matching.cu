@@ -181,7 +181,7 @@ void StableMatchingGPU::post(){
     auto end = std::chrono::high_resolution_clock::now();
     // Calculate the duration in microseconds
     std::chrono::microseconds duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << duration.count() << ", " << _n * 2 << ", " << _n <<  ", " << _n << ", post, " << _n * 2 <<"\n";
+    std::cout << duration.count() << ", " << _n * 2 << ", " << _n <<  ", " << _n << ", post, " << _n * _n <<"\n";
 }
 
 void StableMatchingGPU::propagate(){
