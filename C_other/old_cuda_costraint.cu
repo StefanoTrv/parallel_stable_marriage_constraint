@@ -40,11 +40,11 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
 
     //scans the domain, looking for removed values
     for(int i=old_min[person]; i<=old_max[person];i++){
-        if(getDomainBit2(person_domain,person,i,n)==0){//this bit is 0
+        if(getDomainBitCuda(person_domain,person,i,n)==0){//this bit is 0
             other_person = zpl[person*n+i];
-            if(getDomainBit2(other_domain,other_person,other_zPz[other_person*n+person],n)){//==1 other person's domain must be updated
+            if(getDomainBitCuda(other_domain,other_person,other_zPz[other_person*n+person],n)){//==1 other person's domain must be updated
                 other_index = other_zPz[other_person*n+person];
-                delDomainBit(other_domain,other_person,other_index,n);
+                delDomainBitCuda(other_domain,other_person,other_index,n);
                 if(!atomicExch(&(other_array_mod[other_person]),1)){//it wasn't marked as modified (it was 0)
                     temp = atomicAdd(length_stack,1);
                     other_array_mod[temp] = other_person;
@@ -81,7 +81,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
         //finds the first woman remaining in m's domain/list
         w_index = min_men[m];
         printf("w_index for man %i (thread %i): %i\n", m, id, w_index);
-        while(w_index<=max_men[m] && getDomainBit2(x_domain,m,w_index,n)==0){
+        while(w_index<=max_men[m] && getDomainBitCuda(x_domain,m,w_index,n)==0){
             w_index++;
         }
         printf("new w_index for man %i (thread %i): %i\n", m, id, w_index);
@@ -99,7 +99,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
         printf("p_val for man %i (thread %i): %i\n", m, id, p_val);
 
         if(m_val > p_val){//w prefers p to m
-            delDomainBit(x_domain,m,w_index,n);
+            delDomainBitCuda(x_domain,m,w_index,n);
             printf("Caso1 for man %i (thread %i)\n", m, id);
             //continue;//continues with the same m
         } else if(p_val==m_val){//w is already with m
@@ -110,7 +110,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
             succ_val = m_val + 1;
             while(succ_val<=p_val){
                 succ = ypl[w*n+succ_val];
-                delDomainBit(x_domain,succ,xPy[succ*n+w],n);
+                delDomainBitCuda(x_domain,succ,xPy[succ*n+w],n);
                 succ_val++;
             }
             printf("Caso3 for man %i (thread %i). New man: %i\n", m, id, ypl[w*n+p_val]);
@@ -167,7 +167,7 @@ __global__ void finalize_changes(int n, int* xpl, int* ypl, int* xPy, int* yPx, 
 
     int new_m=max_men[id];//old_max_men
     if(min_men[id]<=max_men[id]){
-        while(new_m>=0 && getDomainBit2(x_domain,id,new_m,n)==0){
+        while(new_m>=0 && getDomainBitCuda(x_domain,id,new_m,n)==0){
             new_m--;
         }
     }
@@ -175,7 +175,7 @@ __global__ void finalize_changes(int n, int* xpl, int* ypl, int* xPy, int* yPx, 
 
     new_m=min_women[id];//old_min_women
     if(max_women[id]>=min_women[id]){
-        while(new_m<n && getDomainBit2(y_domain,id,new_m,n)==0){
+        while(new_m<n && getDomainBitCuda(y_domain,id,new_m,n)==0){
             new_m++;
         }
     }

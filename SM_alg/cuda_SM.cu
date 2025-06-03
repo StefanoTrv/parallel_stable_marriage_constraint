@@ -22,7 +22,7 @@ __global__ void cuda_stable_marriage_kernel(int n, int* xpl, int* ypl, int* xPy,
         w_index = old_min_men[m];
         if(w_index==n){//empty domain
             return;
-        }else if(getDomainBit2(x_domain,m,w_index,n)){//value in domain
+        }else if(getDomainBitCuda(x_domain,m,w_index,n)){//value in domain
             w = xpl[m*n+w_index];
 
             m_val = yPx[w*n+m];
@@ -40,7 +40,7 @@ __global__ void cuda_stable_marriage_kernel(int n, int* xpl, int* ypl, int* xPy,
                 succ_val = m_val + 1;
                 while(succ_val<=p_val){
                     succ = ypl[w*n+succ_val];
-                    delDomainBit(x_domain,succ,xPy[succ*n+w],n);
+                    delDomainBitCuda(x_domain,succ,xPy[succ*n+w],n);
                     succ_val++;
                 }
                 m = ypl[w*n+p_val];
