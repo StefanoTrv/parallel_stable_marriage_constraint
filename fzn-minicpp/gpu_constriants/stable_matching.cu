@@ -536,10 +536,6 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
     __shared__ int flag; // will be equal to *new_length_min_men_stack in the last warp, 0 in every other warp
 
     int id = threadIdx.x + blockIdx.x * blockDim.x;
-    //closes redundant threads
-    //if (id>= *length_min_men_stack){
-    //    return;
-    //}
 
     // These values will be used later
     int lane_id = threadIdx.x % 32;
@@ -651,12 +647,6 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
         }
         id = lane_id; //New id after all the other warps have finished
         __syncwarp();
-
-        //if (lane_id==0){
-        //    *new_length_min_men_stack = flag;
-        //}
-        //return;
-
     }
 }
 
