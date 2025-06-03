@@ -556,6 +556,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
         //finds the first woman remaining in m's domain/list
         w_index = old_min_men[m];
         if(w_index>max_men[m]){//empty domain
+            *new_length_min_men_stack = -n; //avoids further launches of f2 if there is an empty domain
             return;
         }else if(getDomainBitCuda(x_domain,m,w_index,n)){//value in domain
             w = xpl[m*n+w_index];
@@ -606,6 +607,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
         }
         
     }
+    __syncwarp();
 }
 
 //f3: finalizes the changes in the domains and computes the new old_maxes and old_mins
