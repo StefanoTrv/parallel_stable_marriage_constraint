@@ -286,6 +286,10 @@ void get_block_number_and_dimension(int n_threads, int n_SMP, int *block_size, i
     if (n_threads/n_SMP >= 32){ //at least one warp per SMP
         *n_blocks = n_SMP;
         *block_size = (n_threads + *n_blocks - 1) / *n_blocks;
+        // we need full warps
+        if (*block_size<<(32-5)!=0){ // not divisible by 32
+            *block_size = ((*block_size>>5) + 1) << 5; 
+        }
     } else { //less than one warp per SMP
         *block_size = 32;
         *n_blocks = (n_threads + 31) / 32;

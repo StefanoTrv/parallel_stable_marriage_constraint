@@ -67,7 +67,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
     // These values will be used later
     int lane_id = threadIdx.x % 32;
     int warpsPerBlock = (blockDim.x + 31) / 32;
-    int warpCount = warpsPerBlock * gridDim.x; // gridDim.x = block size
+    int warpTotal = warpsPerBlock * gridDim.x; // gridDim.x = number of blocks
     int currentCount;
 
     //the variables named *_val represent the value of some person in the domain of another specific person of the opposite sex
@@ -144,9 +144,9 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
         //Checks if this warp is the last active warp
         if (lane_id==0){
             currentCount = atomicAdd(warp_counter,1);
-            if (currentCount + 1 >= warpCount){ //greater for when it's not the first re-run
+            if (currentCount + 1 >= warpTotal){ //greater for when it's not the first re-run
                 //Using *new_length_min_men_stack causes termination when there's an empty domain and facilitates the reset of the data structures
-                flag = *new_length_min_men_stack; 
+                flag = atomicAdd(new_length_min_men_stack,0); //the atomic operation ensures it is reading the up-to-date value
             } else {
                 flag = 0;
             }
@@ -174,12 +174,6 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
         }
         id = lane_id; //New id after all the other warps have finished
         __syncwarp();
-
-        //if (lane_id==0){
-        //    *new_length_min_men_stack = flag;
-        //}
-        //return;
-
     }
 }
 
