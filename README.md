@@ -1,7 +1,7 @@
 # parallel_stable_marriage_constraint
 Parallel CP constraint for the stable marriage problem with CUDA, integrated in the Minicpp solver.
 
-This is the version described in my master's thesis. For the latest version of the propagator, please check [the master branch](https://github.com/StefanoTrv/parallel_stable_marriage_constraint).
+This is the version described in my master's thesis and presented at CILC-2025. For the latest version of the propagator, please check [the master branch](https://github.com/StefanoTrv/parallel_stable_marriage_constraint).
 
 The code for the Minicpp solver with the serial and parallel SM constraints is available in the folder [fzn-minicpp](/fzn-minicpp/). To compile the project in a Linux environment, run, inside the folder, the following commands:
 ```
