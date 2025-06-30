@@ -117,8 +117,9 @@ void StableMatchingGPU::post(){
     _propagation_counter = 1; // Mismatching values force dumping of all variables
 
     //Copy the domains
-    dumpDomainsToBitset(_x, _x_domain, _old_min_men, _old_max_men,_x_old_sizes);
-    dumpDomainsToBitset(_y, _y_domain, _old_min_women, _old_max_women,_y_old_sizes);
+    int t1; //The person indexes are not needed in the post method (everything is copied)
+    dumpDomainsToBitset(_x, _x_domain, _old_min_men, _old_max_men,_x_old_sizes,&t1,&t1);
+    dumpDomainsToBitset(_y, _y_domain, _old_min_women, _old_max_women,_y_old_sizes,&t1,&t1);
     HANDLE_ERROR(cudaMemcpyAsync(_d_x_domain, _x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyHostToDevice, _stream));
 
     /*
@@ -218,9 +219,27 @@ void StableMatchingGPU::propagate(){
     }
 
     //Copy domains to device
-    dumpDomainsToBitset(_x, _x_domain, _old_min_men, _old_max_men, _x_old_sizes);
-    dumpDomainsToBitset(_y, _y_domain, _old_min_women, _old_max_women, _y_old_sizes);
-    HANDLE_ERROR(cudaMemcpyAsync(_d_x_domain, _x_domain, ((_n * _n) / 32 + (_n % 32 != 0)) * 2 * sizeof(uint32_t), cudaMemcpyHostToDevice, _stream));
+    int first_man, last_man, first_woman, last_woman;
+    dumpDomainsToBitset(_x, _x_domain, _old_min_men, _old_max_men, _x_old_sizes, &first_man, &last_man);
+    dumpDomainsToBitset(_y, _y_domain, _old_min_women, _old_max_women, _y_old_sizes, &first_woman, &last_woman);
+    //Computes interval to be copied into the device
+    int domain_offset, copy_size;
+    if(first_man>=0){
+        domain_offset = (first_man * _n) / 32;
+    } else {
+        domain_offset = ((_n * _n) / 32 + (_n % 32 != 0));
+        domain_offset += (first_woman * _n) / 32;
+    }
+    if(last_woman>=0){
+        copy_size = ((_n * _n) / 32 + (_n % 32 != 0)) * 2 - //Total size
+                    domain_offset - //Offset
+                    (_n - (last_woman +1)) * (_n / 32); //Unchanged last domains (words)
+    } else {
+        copy_size = ((_n * _n) / 32 + (_n % 32 != 0)) - //Men's domains' size
+                    domain_offset - //Offset
+                    (_n - (last_man +1)) * (_n / 32); //Unchanged last domains (words)
+    }
+    HANDLE_ERROR(cudaMemcpyAsync(_d_x_domain + domain_offset, _x_domain + domain_offset, copy_size * sizeof(uint32_t), cudaMemcpyHostToDevice, _stream));
 
     //Updates and increases counters
     _propagation_counter_trail += 1;
@@ -337,17 +356,25 @@ void StableMatchingGPU::copyPreferenceMatrix(std::vector<std::vector<int>> zpl_v
     }
 }
 
-void StableMatchingGPU::dumpDomainsToBitset(std::vector<var<int>::Ptr> vars, uint32_t* dom, int* old_mins, int* old_maxes, std::vector<trail<int>> old_sizes){
+void StableMatchingGPU::dumpDomainsToBitset(std::vector<var<int>::Ptr> vars, uint32_t* dom, int* old_mins, int* old_maxes, std::vector<trail<int>> old_sizes, int* first_person, int* last_person){
     int starting_bit,ending_bit;
     int starting_word, ending_word;
     int var_min, var_max;
     uint32_t mask;
     bool has_backtracked = _propagation_counter_trail != _propagation_counter;
+    *first_person = -1;
+    *last_person = -1;
     for(int i=0; i<_n; i++){
         //_has_backtracked allows the bitset to be correct even after backtracking
         if(vars[i]->size()==old_sizes[i] && !has_backtracked){ //checks size to see if variable has changed
             continue;
         }
+
+        //Computes interval to be copied to the GPU
+        if(*first_person<0){
+            *first_person = i;
+        }
+        *last_person = i;
 
         //Note: During the first dump, all the domains' bitsets will be completely overwritten.
         var_min = old_mins[i];

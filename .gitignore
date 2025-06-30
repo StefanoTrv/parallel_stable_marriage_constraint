@@ -54,7 +54,7 @@ fzn-minicpp/build/
 
 #output folder, executable and io for the comparator
 constraint_tester/out/
-constraint_tester/fzn-minicpp
+constraint_tester/config.txt
 constraint_tester/parallel_input.mzn
 constraint_tester/serial_input.mzn
 
