@@ -376,8 +376,11 @@ int cuda_constraint(int n, int *_xpl, int *_ypl, uint32_t *x_domain, uint32_t *y
     int n_threads = length_men_stack + length_women_stack;
     int n_blocks, block_size;
     get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
+
+    //sets to 0 d_array_min_mod_men and d_warp_counter
+    HANDLE_ERROR(cudaMemsetAsync(d_array_min_mod_men,0,sizeof(int)*(n+1), stream));
     
-    make_domains_coherent<<<n_blocks,block_size,0,stream>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_stack_mod_men, d_stack_mod_women, length_men_stack, length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women);
+    make_domains_coherent<<<n_blocks,block_size,0,stream>>>(true, n, d_xpl, d_ypl, d_xPy, d_yPx, d_x_domain, d_y_domain, d_array_min_mod_men, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_stack_mod_men, d_stack_mod_women, length_men_stack, length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women, d_warp_counter);
 
     //debug
     //cudaStreamSynchronize(stream);
@@ -387,10 +390,9 @@ int cuda_constraint(int n, int *_xpl, int *_ypl, uint32_t *x_domain, uint32_t *y
     //print_domains(n,x_domain,y_domain);
     //debug
 
-    //empties d_array_min_mod_men
-    HANDLE_ERROR(cudaMemsetAsync(d_array_min_mod_men,0,sizeof(int)*(n+1), stream));
 
     //completely fills min_men_stack
+    /*
     *length_min_men_stack = n;
     for (int i=0;i<n;i++){
         stack_mod_min_men[i]=i;
@@ -405,6 +407,8 @@ int cuda_constraint(int n, int *_xpl, int *_ypl, uint32_t *x_domain, uint32_t *y
 
     //printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
     apply_sm_constraint<<<n_blocks,block_size,0,stream>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women, d_warp_counter, 0);
+    */
+   
     /*HANDLE_ERROR(cudaMemcpyAsync(new_length_min_men_stack, d_new_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, stream));
     cudaStreamSynchronize(stream);
     //printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
