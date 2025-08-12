@@ -404,7 +404,7 @@ int cuda_constraint(int n, int *_xpl, int *_ypl, uint32_t *x_domain, uint32_t *y
     //printf("Prima di lancio di f2: %i, %i, %i\n", n_threads, n_blocks,block_size);
 
     //printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
-    apply_sm_constraint<<<n_blocks,block_size,0,stream>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_max_men, d_max_women, d_warp_counter, 0);
+    apply_sm_constraint<<<n_blocks,block_size,0,stream>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women, d_warp_counter, 0);
     /*HANDLE_ERROR(cudaMemcpyAsync(new_length_min_men_stack, d_new_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, stream));
     cudaStreamSynchronize(stream);
     //printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
@@ -437,9 +437,9 @@ int cuda_constraint(int n, int *_xpl, int *_ypl, uint32_t *x_domain, uint32_t *y
     //print_domains(n,x_domain,y_domain);
     //debug
 
-    n_threads = n;
-    get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
-    finalize_changes<<<n_blocks,block_size,0,stream>>>(n,d_x_domain,d_y_domain, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women);
+    //n_threads = n;
+    //get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
+    //finalize_changes<<<n_blocks,block_size,0,stream>>>(n,d_x_domain,d_y_domain, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women);
 
     //copies from device memory
     HANDLE_ERROR(cudaMemcpyAsync(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost, stream));
