@@ -3,12 +3,9 @@
 
 __host__ __device__ void get_block_number_and_dimension(int, int, int*, int*);
 __global__ void finalize_changes(int, uint32_t*, uint32_t*, int*, int*, int*, int*, int*, int*, int*);
-__global__ void apply_sm_constraint(int, int*, int*, int*, int*, uint32_t*, uint32_t*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int);
+__global__ void apply_sm_constraint(int, int*, int*, int*, int*, uint32_t*, uint32_t*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*);
 
 __constant__ uint32_t ALL_ONES = 4294967295;
-constexpr int max_grid_depth_const = 24; // max depth of dynamic parallelism. The first grid has level 0, the last max_grid_depth.
-static_assert(max_grid_depth_const % 2 == 0, "max_grid_depth_const must be an even number"); // necessary to avoid errors with stack_mod_min_men and new_stack_mod_min_men
-__constant__ int max_grid_depth = max_grid_depth_const;
 __constant__ int d_n_SMP;
 
 // f1: removes from the women's domains the men who don't have that woman in their list (domain) anymore, and vice versa
@@ -87,14 +84,14 @@ __global__ void make_domains_coherent(bool first_propagation, int n, int* xpl, i
         *warp_counter = 0;
         int block_size, n_blocks;
         get_block_number_and_dimension(*length_min_men_stack,d_n_SMP,&block_size,&n_blocks);
-        apply_sm_constraint<<<n_blocks,block_size,0>>>(n, xpl, ypl, xPy, yPx, x_domain, y_domain, array_min_mod_men, stack_mod_min_men, length_min_men_stack, new_stack_mod_min_men, new_length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter, 1);
+        apply_sm_constraint<<<n_blocks,block_size,0>>>(n, xpl, ypl, xPy, yPx, x_domain, y_domain, array_min_mod_men, stack_mod_min_men, length_min_men_stack, new_stack_mod_min_men, new_length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter);
     }
 
 }
 
 // f2: applies the stable marriage constraint
 // Modifies old_min_men, max_women and x_domain
-__global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women, int* warp_counter, int grid_depth){
+__global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women, int* warp_counter){
     __shared__ int flag; // will be equal to *new_length_min_men_stack in the last warp, a negative number in every other warp
 
     int id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -182,9 +179,6 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
             if (currentCount + 1 >= warpTotal){ //greater for when it's not the first re-run
                 //Using *new_length_min_men_stack causes termination when there's an empty domain and facilitates the reset of the data structures
                 flag = atomicAdd(new_length_min_men_stack,0); //the atomic operation ensures it is reading the up-to-date value
-                if(flag<0){
-                    *length_min_men_stack = -1; //Tells host not to launch new phases (we don't know if the host will read this variable or the "new" version).
-                }
             } else {
                 flag = -1; //-1 to be able to distinguish when f3 should be called or not
             }
@@ -193,10 +187,8 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
         //If it's not the last active warp or an empty domain was found, it returns
         if (flag < 0){
             return;
-        } else if (flag == 0){ //If there is no new free man and max depth has not been reached, if launches f3 and returns
-            if(lane_id==0 && grid_depth < max_grid_depth){ //Only the first thread launches f3
-                *new_length_min_men_stack = -1; //Tells host not to launch new phases (we don't know which one will be read by the host).
-                *length_min_men_stack = -1; //Tells host not to launch new phases (we don't know which one will be read by the host).
+        } else if (flag == 0){ //If there is no new free man, it launches f3 and returns
+            if(lane_id==0){ //Only the first thread launches f3
                 int block_size, n_blocks;
                 get_block_number_and_dimension(n,d_n_SMP,&block_size,&n_blocks);
                 finalize_changes<<<n_blocks,block_size,0>>>(n, x_domain, y_domain, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women);
@@ -206,19 +198,17 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
 
         //If there are too many newly freed men, it returns, but the first thread may launch a new grid
         if (flag > 32){
-            if (grid_depth < max_grid_depth){
-                for(int i=lane_id; i<n; i+=32){ //All threads cooperate to reset the array
-                    array_min_mod_men[i] = 0;
-                }
-                __syncwarp();
-                if(lane_id==0){ //Only the first thread may launch a new grid
-                    //printf("New internal launch at depth %i.\n",grid_depth+1);
-                    int block_size, n_blocks;
-                    get_block_number_and_dimension(*new_length_min_men_stack,d_n_SMP,&block_size,&n_blocks);
-                    *length_min_men_stack = 0; //switches the two mod_min_men stacks
-                    *warp_counter = 0;
-                    apply_sm_constraint<<<n_blocks,block_size,0>>>(n,xpl,ypl,xPy,yPx,x_domain,y_domain, array_min_mod_men, new_stack_mod_min_men, new_length_min_men_stack, stack_mod_min_men, length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter, grid_depth+1);
-                }
+            for(int i=lane_id; i<n; i+=32){ //All threads cooperate to reset the array
+                array_min_mod_men[i] = 0;
+            }
+            __syncwarp();
+            if(lane_id==0){ //Only the first thread may launch a new grid
+                //printf("New internal launch at depth %i.\n",grid_depth+1);
+                int block_size, n_blocks;
+                get_block_number_and_dimension(*new_length_min_men_stack,d_n_SMP,&block_size,&n_blocks);
+                *length_min_men_stack = 0; //switches the two mod_min_men stacks
+                *warp_counter = 0;
+                apply_sm_constraint<<<n_blocks,block_size,0>>>(n,xpl,ypl,xPy,yPx,x_domain,y_domain, array_min_mod_men, new_stack_mod_min_men, new_length_min_men_stack, stack_mod_min_men, length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter);
             }
             return;
         }

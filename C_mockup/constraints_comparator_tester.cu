@@ -383,42 +383,7 @@ int cuda_constraint(int n, int *_xpl, int *_ypl, uint32_t *x_domain, uint32_t *y
     make_domains_coherent<<<n_blocks,block_size,0,stream>>>(true, n, d_xpl, d_ypl, d_xPy, d_yPx, d_x_domain, d_y_domain, d_array_min_mod_men, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_stack_mod_men, d_stack_mod_women, length_men_stack, length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women, d_warp_counter);
 
     //debug
-    //cudaStreamSynchronize(stream);
-    //printf("After f1:\n");
-    //HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
-    //HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
-    //print_domains(n,x_domain,y_domain);
-    //debug
-   
-    HANDLE_ERROR(cudaMemcpyAsync(length_min_men_stack, d_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, stream));
-    //length_min_men_stack has been used by the last active grid as new_length_min_men_stack, so it is actually reading the last new_length_min_men_stack
-    cudaStreamSynchronize(stream);
-    //printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
-    while(*length_min_men_stack>0){ //Needs more launches of f2
-        //printf("Host launching again phase 2 (length_min_men_stack = %i).\n",*length_min_men_stack);
-        //debug
-        //printf("After f1:\n");
-        //HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
-        //HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
-        //print_domains(n,x_domain,y_domain);
-        //debug
-
-        HANDLE_ERROR(cudaMemsetAsync(d_array_min_mod_men,0,sizeof(int)*(n+1), stream)); //Includes warp_counter        
-        HANDLE_ERROR(cudaMemsetAsync(d_new_length_min_men_stack,0,sizeof(int)*1, stream)); //Resets new_length_min_men_stack
-        
-        n_threads = *length_min_men_stack;
-        get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
-        apply_sm_constraint<<<n_blocks,block_size,0,stream>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women, d_warp_counter, 1);
-        HANDLE_ERROR(cudaMemcpyAsync(length_min_men_stack, d_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, stream));
-        cudaStreamSynchronize(stream);
-    }
-    if(*length_min_men_stack==0){ //Needs one launch of f3
-        //printf("Host launching phase 3.\n");
-        finalize_changes<<<n_blocks,block_size,0,stream>>>(n,d_x_domain,d_y_domain, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women);
-    }
-
-    //debug
-    //printf("After f2:\n");
+    //printf("After kernels:\n");
     //HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
     //HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
     //print_domains(n,x_domain,y_domain);
