@@ -55,7 +55,6 @@ class StableMatchingGPU : public Constraint
         int getBitHost(uint32_t* bitmap, int index);
         int getDomainBitHost(uint32_t* bitmap, int row, int column);
         void updateHostData();
-        void getBlockNumberAndDimension(int n_threads, int *block_size, int *n_blocks);
         void iterateFun2();
         void fillStacks(int* _length_men_stack, int* _length_women_stack);
 };

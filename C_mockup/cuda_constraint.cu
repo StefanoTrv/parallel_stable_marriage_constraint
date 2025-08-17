@@ -80,13 +80,17 @@ __global__ void make_domains_coherent(bool first_propagation, int n, int* xpl, i
         }
         __syncwarp();
     }
-    if(lane_id==0){ //The first thread launches f2
+    if(lane_id==0){ //The first thread launches f2 (or f3 if f2 can be skipped)
         *warp_counter = 0;
         int block_size, n_blocks;
-        get_block_number_and_dimension(*length_min_men_stack,d_n_SMP,&block_size,&n_blocks);
-        apply_sm_constraint<<<n_blocks,block_size,0>>>(n, xpl, ypl, xPy, yPx, x_domain, y_domain, array_min_mod_men, stack_mod_min_men, length_min_men_stack, new_stack_mod_min_men, new_length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter);
+        if(*length_min_men_stack>0){
+            get_block_number_and_dimension(*length_min_men_stack,d_n_SMP,&block_size,&n_blocks);
+            apply_sm_constraint<<<n_blocks,block_size,0>>>(n, xpl, ypl, xPy, yPx, x_domain, y_domain, array_min_mod_men, stack_mod_min_men, length_min_men_stack, new_stack_mod_min_men, new_length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter);
+        } else {
+            get_block_number_and_dimension(n,d_n_SMP,&block_size,&n_blocks);
+            finalize_changes<<<n_blocks,block_size,0>>>(n, x_domain, y_domain, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women);
+        }
     }
-
 }
 
 // f2: applies the stable marriage constraint
