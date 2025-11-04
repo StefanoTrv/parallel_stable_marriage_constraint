@@ -102,7 +102,7 @@ int main(int argc, char *argv[]) {
             }
             print_preference_lists(n,men_pl,women_pl);
             print_domains(n,men_domain_orig,women_domain_orig);
-            printf("Resulting domlength_min_men_stackains for serial constraint:\n");
+            printf("Resulting domains for serial constraint:\n");
             print_domains(n,men_domain,women_domain);
             printf("Resulting domains for parallel constraint:\n");
             print_domains(n,men_domain_parallel,women_domain_parallel);
@@ -260,7 +260,7 @@ void freeSerialMemory(int *xPy, int *yPx, int *xlb, int *yub) {
 int cuda_constraint(int n, int *_xpl, int *_ypl, uint32_t *x_domain, uint32_t *y_domain) {
     cudaStream_t stream;
     cudaStreamCreate(&stream);
-    int temp;
+    int temp, *temp_p;
 
     //Domain device memory allocation and transfer
     uint32_t *d_x_domain, *d_y_domain;
@@ -372,23 +372,74 @@ int cuda_constraint(int n, int *_xpl, int *_ypl, uint32_t *x_domain, uint32_t *y
     struct cudaDeviceProp props;
     cudaGetDeviceProperties(&props, device);
     int n_SMP = props.multiProcessorCount;
-    cudaMemcpyToSymbol(d_n_SMP, &n_SMP, sizeof(int));
     int n_threads = length_men_stack + length_women_stack;
     int n_blocks, block_size;
     get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
-
-    //sets to 0 d_array_min_mod_men and d_warp_counter
-    HANDLE_ERROR(cudaMemsetAsync(d_array_min_mod_men,0,sizeof(int)*(n+1), stream));
     
-    make_domains_coherent<<<n_blocks,block_size,0,stream>>>(true, n, d_xpl, d_ypl, d_xPy, d_yPx, d_x_domain, d_y_domain, d_array_min_mod_men, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_stack_mod_men, d_stack_mod_women, length_men_stack, length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women, d_warp_counter);
+    make_domains_coherent<<<n_blocks,block_size,0,stream>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_stack_mod_men, d_stack_mod_women, length_men_stack, length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women);
 
     //debug
-    //printf("After kernels:\n");
+    //cudaStreamSynchronize(stream);
+    //printf("After f1:\n");
     //HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
     //HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
     //print_domains(n,x_domain,y_domain);
     //debug
+
+    //empties d_array_min_mod_men
+    HANDLE_ERROR(cudaMemsetAsync(d_array_min_mod_men,0,sizeof(int)*(n+1), stream));
+
+    //completely fills min_men_stack
+    *length_min_men_stack = n;
+    for (int i=0;i<n;i++){
+        stack_mod_min_men[i]=i;
+    }
+    HANDLE_ERROR(cudaMemcpyAsync(d_stack_mod_min_men, stack_mod_min_men, sizeof(int) * n, cudaMemcpyHostToDevice, stream));
+    HANDLE_ERROR(cudaMemcpyAsync(d_length_min_men_stack, length_min_men_stack, sizeof(int), cudaMemcpyHostToDevice, stream));
+
+    n_threads = *length_min_men_stack;
+    get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
     
+    //printf("Prima di lancio di f2: %i, %i, %i\n", n_threads, n_blocks,block_size);
+
+    //printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
+    apply_sm_constraint<<<n_blocks,block_size,0,stream>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_max_men, d_max_women, d_warp_counter);
+    HANDLE_ERROR(cudaMemcpyAsync(new_length_min_men_stack, d_new_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, stream));
+    cudaStreamSynchronize(stream);
+    //printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
+    while(*new_length_min_men_stack>0){
+        //debug
+        //printf("After f1:\n");
+        //HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+        //HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+        //print_domains(n,x_domain,y_domain);
+        //debug
+
+        HANDLE_ERROR(cudaMemsetAsync(d_array_min_mod_men,0,sizeof(int)*(n+1), stream));
+        *length_min_men_stack = *new_length_min_men_stack;
+        *new_length_min_men_stack = 0;
+        HANDLE_ERROR(cudaMemcpyAsync(d_length_min_men_stack, length_min_men_stack, sizeof(int) * 2, cudaMemcpyHostToDevice, stream));
+        temp_p = d_new_stack_mod_min_men;
+        d_new_stack_mod_min_men = d_stack_mod_min_men;
+        d_stack_mod_min_men = temp_p;
+        n_threads = *length_min_men_stack;
+        get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
+        apply_sm_constraint<<<n_blocks,block_size,0,stream>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_max_men, d_max_women, d_warp_counter);
+        HANDLE_ERROR(cudaMemcpyAsync(new_length_min_men_stack, d_new_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, stream));
+        cudaStreamSynchronize(stream);
+    }
+
+    //debug
+    //printf("After f2:\n");
+    //HANDLE_ERROR(cudaMemcpy(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+    //HANDLE_ERROR(cudaMemcpy(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+    //print_domains(n,x_domain,y_domain);
+    //debug
+
+    n_threads = n;
+    get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
+    finalize_changes<<<n_blocks,block_size,0,stream>>>(n,d_x_domain,d_y_domain, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women);
+
     //copies from device memory
     HANDLE_ERROR(cudaMemcpyAsync(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost, stream));
     HANDLE_ERROR(cudaMemcpyAsync(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost, stream));
@@ -446,6 +497,23 @@ int cuda_constraint(int n, int *_xpl, int *_ypl, uint32_t *x_domain, uint32_t *y
     //Frees memory and closes
     free(xpl);
     return 0;
+}
+
+/*
+    Computes the appropriate block size and number of blocks based on the number of threads required and the number of SMPs
+*/
+void get_block_number_and_dimension(int n_threads, int n_SMP, int *block_size, int *n_blocks){
+    if (n_threads/n_SMP >= 32){ //at least one warp per SMP
+        *n_blocks = n_SMP;
+        *block_size = (n_threads + *n_blocks - 1) / *n_blocks;
+        // we need full warps
+        if (*block_size<<(32-5)!=0){ // not divisible by 32
+            *block_size = ((*block_size>>5) + 1) << 5; 
+        }
+    } else { //less than one warp per SMP
+        *block_size = 32;
+        *n_blocks = (n_threads + 31) / 32;
+    }
 }
 
 /*
