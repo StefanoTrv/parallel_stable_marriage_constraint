@@ -2,6 +2,7 @@
 #include "utils/cuda_domain_functions.cu"
 
 __constant__ uint32_t ALL_ONES = 4294967295;
+__constant__ int d_n_SMP;
 
 // f1: removes from the women's domains the men who don't have that woman in their list (domain) anymore, and vice versa
 // Modifies only the domains
@@ -85,7 +86,7 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
     //This external cycle allows the last warp to execute again, if appropriate
     while(1){
         //the thread cycles as long as it has a man assigned to it
-        while(id < *length_min_men_stack){//Avoids memory access errors while keeping all warps active
+        while(id < *length_min_men_stack){//Avoids memory access errors while keeping all warps active (instead of while true)
             //finds the first woman remaining in m's domain/list
             w_index = old_min_men[m];
             if(w_index>max_men[m]){//empty domain
@@ -234,4 +235,21 @@ __global__ void finalize_changes(int n, uint32_t* x_domain, uint32_t* y_domain, 
     }
     old_min_women[id]=new_m;
 
+}
+
+/*
+    Computes the appropriate block size and number of blocks based on the number of threads required and the number of SMPs
+*/
+__host__ __device__ void get_block_number_and_dimension(int n_threads, int n_SMP, int *block_size, int *n_blocks){
+    if (n_threads/n_SMP >= 32){ //at least one warp per SMP
+        *n_blocks = n_SMP;
+        *block_size = (n_threads + *n_blocks - 1) / *n_blocks;
+        // we need full warps
+        if (*block_size<<(32-5)!=0){ // not divisible by 32
+            *block_size = ((*block_size>>5) + 1) << 5; 
+        }
+    } else { //less than one warp per SMP
+        *block_size = 32;
+        *n_blocks = (n_threads + 31) / 32;
+    }
 }

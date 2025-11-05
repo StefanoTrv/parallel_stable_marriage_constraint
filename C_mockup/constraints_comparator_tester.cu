@@ -372,6 +372,7 @@ int cuda_constraint(int n, int *_xpl, int *_ypl, uint32_t *x_domain, uint32_t *y
     struct cudaDeviceProp props;
     cudaGetDeviceProperties(&props, device);
     int n_SMP = props.multiProcessorCount;
+    cudaMemcpyToSymbol(d_n_SMP, &n_SMP, sizeof(int));
     int n_threads = length_men_stack + length_women_stack;
     int n_blocks, block_size;
     get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
@@ -497,23 +498,6 @@ int cuda_constraint(int n, int *_xpl, int *_ypl, uint32_t *x_domain, uint32_t *y
     //Frees memory and closes
     free(xpl);
     return 0;
-}
-
-/*
-    Computes the appropriate block size and number of blocks based on the number of threads required and the number of SMPs
-*/
-void get_block_number_and_dimension(int n_threads, int n_SMP, int *block_size, int *n_blocks){
-    if (n_threads/n_SMP >= 32){ //at least one warp per SMP
-        *n_blocks = n_SMP;
-        *block_size = (n_threads + *n_blocks - 1) / *n_blocks;
-        // we need full warps
-        if (*block_size<<(32-5)!=0){ // not divisible by 32
-            *block_size = ((*block_size>>5) + 1) << 5; 
-        }
-    } else { //less than one warp per SMP
-        *block_size = 32;
-        *n_blocks = (n_threads + 31) / 32;
-    }
 }
 
 /*
