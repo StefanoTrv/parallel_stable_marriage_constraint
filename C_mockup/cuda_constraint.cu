@@ -1,17 +1,27 @@
 #include <stdio.h>
 #include "utils/cuda_domain_functions.cu"
 
+__host__ __device__ void get_block_number_and_dimension(int, int, int*, int*);
+__global__ void interludeOne(bool, int, int*, int*, int*, int*, uint32_t*, uint32_t*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*);
+__global__ void interludeTwo(int, int*, int*, int*, int*, uint32_t*, uint32_t*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*);
+__global__ void finalize_changes(int, uint32_t*, uint32_t*, int*, int*, int*, int*, int*, int*, int*);
+__global__ void apply_sm_constraint(int, int*, int*, int*, int*, uint32_t*, uint32_t*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*, int*);
+
 __constant__ uint32_t ALL_ONES = 4294967295;
 __constant__ int d_n_SMP;
 
 // f1: removes from the women's domains the men who don't have that woman in their list (domain) anymore, and vice versa
 // Modifies only the domains
-__global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* stack_mod_men, int* stack_mod_women, int length_men_stack, int length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women){
+__global__ void make_domains_coherent(bool first_propagation, int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* stack_mod_men, int* stack_mod_women, int length_men_stack, int length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women, int* warp_counter){
     int id = threadIdx.x + blockIdx.x * blockDim.x;
     //closes redundant threads
     if (id>= length_men_stack + length_women_stack){
         //printf("Returning %i\n",id);
         return;
+    }
+    //first thread launches f1.5
+    if(id == 0){
+        interludeOne<<<1,32,0,cudaStreamTailLaunch>>>(first_propagation, n, xpl, ypl, xPy, yPx, x_domain, y_domain, array_min_mod_men, stack_mod_min_men, length_min_men_stack, new_stack_mod_min_men, new_length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter);
     }
     //printf("Continuing %i\n",id);
     //gets person associated with thread and picks the correct data structures
@@ -54,9 +64,35 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
     }
 }
 
+// f1.5: prepares for and launches f2, or f3 if f2 is not needed
+__global__ void interludeOne(bool first_propagation, int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women, int* warp_counter){
+    int lane_id = threadIdx.x;// % 32;
+    if(first_propagation){ //The first propagation needs extra initialization
+        for(int i=lane_id; i<n; i+=32){ //All threads cooperate to fill the stack
+            stack_mod_min_men[i] = i;
+        }
+        if(lane_id==0){
+            *length_min_men_stack = n;
+        }
+        __syncwarp();
+    }
+    if(lane_id==0){ //The first thread launches f2 (or f3 if f2 can be skipped)
+        *warp_counter = 0;
+        int block_size, n_blocks;
+        if(*length_min_men_stack>0){
+            get_block_number_and_dimension(*length_min_men_stack,d_n_SMP,&block_size,&n_blocks);
+            apply_sm_constraint<<<n_blocks,block_size,0,cudaStreamFireAndForget>>>(n, xpl, ypl, xPy, yPx, x_domain, y_domain, array_min_mod_men, stack_mod_min_men, length_min_men_stack, new_stack_mod_min_men, new_length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter);
+            interludeTwo<<<1,32,0,cudaStreamTailLaunch>>>(n, xpl, ypl, xPy, yPx, x_domain, y_domain, array_min_mod_men, stack_mod_min_men, length_min_men_stack, new_stack_mod_min_men, new_length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter);
+        } else {
+            get_block_number_and_dimension(n,d_n_SMP,&block_size,&n_blocks);
+            finalize_changes<<<n_blocks,block_size,0,cudaStreamFireAndForget>>>(n, x_domain, y_domain, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women);
+        }
+    }
+}
+
 // f2: applies the stable marriage constraint
 // Modifies old_min_men, max_women and x_domain
-__global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* max_men, int* max_women, int* warp_counter){
+__global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women, int* warp_counter){
     __shared__ int flag; // will be equal to *new_length_min_men_stack in the last warp, 0 in every other warp
 
     int id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -175,6 +211,33 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
         }
         id = lane_id; //New id after all the other warps have finished
         __syncwarp();
+    }
+}
+
+// f2.5: prepares for and launches again f2, or f3, or ends early if an empty domain was found
+__global__ void interludeTwo(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women, int* warp_counter){
+    int lane_id = threadIdx.x;// % 32;
+    if (*new_length_min_men_stack < 0){ //Empty domain was found: return
+        return;
+    } else if (*new_length_min_men_stack == 0){ //Can launch f3
+        if(lane_id==0){ //Only the first thread launches f3
+            int block_size, n_blocks;
+            get_block_number_and_dimension(n,d_n_SMP,&block_size,&n_blocks);
+            finalize_changes<<<n_blocks,block_size,0,cudaStreamTailLaunch>>>(n, x_domain, y_domain, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women);
+        }
+    } else { //Launches again f2
+        for(int i=lane_id; i<n; i+=32){ //All threads cooperate to reset the array
+            array_min_mod_men[i] = 0;
+        }
+        __syncwarp();
+        if(lane_id==0){ //Only the first thread may launch a new grid
+            int block_size, n_blocks;
+            get_block_number_and_dimension(*new_length_min_men_stack,d_n_SMP,&block_size,&n_blocks);
+            *length_min_men_stack = 0; //switches the two mod_min_men stacks
+            *warp_counter = 0;
+            apply_sm_constraint<<<n_blocks,block_size,0,cudaStreamFireAndForget>>>(n, xpl, ypl, xPy, yPx, x_domain, y_domain, array_min_mod_men, new_stack_mod_min_men, new_length_min_men_stack, stack_mod_min_men, length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter);
+            interludeTwo<<<1,32,0,cudaStreamTailLaunch>>>(n, xpl, ypl, xPy, yPx, x_domain, y_domain, array_min_mod_men, new_stack_mod_min_men, new_length_min_men_stack, stack_mod_min_men, length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter);
+        }
     }
 }
 
