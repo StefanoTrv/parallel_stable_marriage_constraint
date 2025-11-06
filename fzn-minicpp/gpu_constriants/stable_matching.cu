@@ -104,6 +104,7 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
 }
 
 void StableMatchingGPU::post(){
+    HANDLE_ERROR(cudaMemsetAsync(_d_array_min_mod_men,0,sizeof(int)*(_n+1), _stream)); // sets to 0 d_array_min_mod_men and _d_warp_counter
     int _length_men_stack, _length_women_stack;
     _length_men_stack = 0;
     _length_women_stack = 0;
@@ -131,11 +132,14 @@ void StableMatchingGPU::post(){
     /*
         Excute kernels
     */
-    int n_threads = max(_length_men_stack + _length_women_stack,1); //At least one warp will be launched
-    int n_blocks, block_size;
-    get_block_number_and_dimension(n_threads,_n_SMP,&block_size,&n_blocks);
-    HANDLE_ERROR(cudaMemsetAsync(_d_array_min_mod_men,0,sizeof(int)*(_n+1), _stream)); // sets to 0 d_array_min_mod_men and _d_warp_counter
-    make_domains_coherent<<<n_blocks,block_size,0,_stream>>>(true, _n, _d_xpl, _d_ypl, _d_xPy, _d_yPx, _d_x_domain, _d_y_domain, _d_array_min_mod_men, _d_new_stack_mod_min_men, _d_new_length_min_men_stack, _d_stack_mod_men, _d_stack_mod_women, _length_men_stack, _length_women_stack, _d_stack_mod_min_men, _d_length_min_men_stack, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women, _d_max_men, _d_min_women, _d_max_women, _d_warp_counter);
+    if(_length_men_stack + _length_women_stack > 0){ //Launches f1 only if needed
+        int n_threads, n_blocks, block_size;
+        n_threads = _length_men_stack + _length_women_stack;
+        get_block_number_and_dimension(n_threads,_n_SMP,&block_size,&n_blocks);
+        make_domains_coherent<<<n_blocks,block_size,0,_stream>>>(true, _n, _d_xpl, _d_ypl, _d_xPy, _d_yPx, _d_x_domain, _d_y_domain, _d_array_min_mod_men, _d_new_stack_mod_min_men, _d_new_length_min_men_stack, _d_stack_mod_men, _d_stack_mod_women, _length_men_stack, _length_women_stack, _d_stack_mod_min_men, _d_length_min_men_stack, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women, _d_max_men, _d_min_women, _d_max_women, _d_warp_counter);
+    } else { //Skips phase 1 if not needed
+        interludeOne<<<1,32,0,_stream>>>(true, _n, _d_xpl, _d_ypl, _d_xPy, _d_yPx, _d_x_domain, _d_y_domain, _d_array_min_mod_men, _d_stack_mod_min_men, _d_length_min_men_stack, _d_new_stack_mod_min_men, _d_new_length_min_men_stack, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women, _d_max_men, _d_min_women, _d_max_women, _d_warp_counter);
+    }
 
     /*
         Completed kernel execution (not yet synchronized)
@@ -178,6 +182,7 @@ void StableMatchingGPU::propagate(){
     if(_length_men_stack+_length_women_stack==0){ //no variable needs to be updated: quits immediately
         return;
     }
+    HANDLE_ERROR(cudaMemsetAsync(_d_array_min_mod_men,0,sizeof(int)*(_n+1), _stream)); // sets to 0 d_array_min_mod_men and _d_warp_counter
     for(int i=0; i<_n; i++){
         _min_women[i]=_y[i]->min();
         _max_men[i]=_x[i]->max();
@@ -208,8 +213,6 @@ void StableMatchingGPU::propagate(){
     if(_length_women_stack>0){
         HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_women, _stack_mod_women, (_length_women_stack) * sizeof(int), cudaMemcpyHostToDevice, _stream));
     }
-    HANDLE_ERROR(cudaMemsetAsync(_d_array_min_mod_men,0,sizeof(int)*(_n+1), _stream)); // sets to 0 d_array_min_mod_men and _d_warp_counter
-
 
     //Copy domains to device
     int first_man, last_man, first_woman, last_woman;
@@ -240,6 +243,7 @@ void StableMatchingGPU::propagate(){
 
     /*
         Excute kernels
+        Note: there is no check to see if phase 1 is needed or not, as if we are here, it is necessarily needed
     */
     int n_threads = _length_men_stack + _length_women_stack;
     int n_blocks, block_size;

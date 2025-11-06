@@ -373,15 +373,19 @@ int cuda_constraint(int n, int *_xpl, int *_ypl, uint32_t *x_domain, uint32_t *y
     cudaGetDeviceProperties(&props, device);
     int n_SMP = props.multiProcessorCount;
     cudaMemcpyToSymbol(d_n_SMP, &n_SMP, sizeof(int));
-    int n_threads = length_men_stack + length_women_stack;
-    int n_blocks, block_size;
-    get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
 
     //empties d_array_min_mod_men
     HANDLE_ERROR(cudaMemsetAsync(d_array_min_mod_men,0,sizeof(int)*(n+1), stream));
     
-    make_domains_coherent<<<n_blocks,block_size,0,stream>>>(true, n, d_xpl, d_ypl, d_xPy, d_yPx, d_x_domain, d_y_domain, d_array_min_mod_men, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_stack_mod_men, d_stack_mod_women, length_men_stack, length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women, d_warp_counter);
-
+    if(length_men_stack + length_women_stack > 0){ //This will always be true in this mockup
+        int n_threads, n_blocks, block_size;
+        n_threads = length_men_stack + length_women_stack;
+        get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
+        make_domains_coherent<<<n_blocks,block_size,0,stream>>>(true, n, d_xpl, d_ypl, d_xPy, d_yPx, d_x_domain, d_y_domain, d_array_min_mod_men, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_stack_mod_men, d_stack_mod_women, length_men_stack, length_women_stack, d_stack_mod_min_men, d_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women, d_warp_counter);
+    } else { //Skips phase 1 if not needed
+        interludeOne<<<1,32,0,stream>>>(true, n, d_xpl, d_ypl, d_xPy, d_yPx, d_x_domain, d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_old_max_men, d_old_min_women, d_old_max_women, d_max_men, d_min_women, d_max_women, d_warp_counter);
+    }
+    
     //copies from device memory
     HANDLE_ERROR(cudaMemcpyAsync(x_domain, d_x_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost, stream));
     HANDLE_ERROR(cudaMemcpyAsync(y_domain, d_y_domain, ((n * n) / 32 + (n % 32 != 0)) * sizeof(uint32_t), cudaMemcpyDeviceToHost, stream));
