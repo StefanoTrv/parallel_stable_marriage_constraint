@@ -1,2 +1,2 @@
-nvcc .\constraints_comparator_tester.cu -pg -g -G -lineinfo
-compute-sanitizer --tool memcheck .\a.exe 5 0 2
+nvcc constraints_comparator_tester.cu -pg -g -G -lineinfo -rdc=true
+compute-sanitizer --tool memcheck a.out 5 0 2

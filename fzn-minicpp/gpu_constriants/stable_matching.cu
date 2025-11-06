@@ -3,9 +3,14 @@
 
 const uint32_t UNS_ONE = 1;
 
-__global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* stack_mod_men, int* stack_mod_women, int length_men_stack, int length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women);
-__global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* max_men, int* max_women, int* warp_counter);
+__global__ void make_domains_coherent(bool first_propagation, int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* stack_mod_men, int* stack_mod_women, int length_men_stack, int length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women, int* warp_counter);
+__global__ void interludeOne(bool first_propagation, int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women, int* warp_counter);
+__global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women, int* warp_counter);
+__global__ void interludeTwo(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women, int* warp_counter);
 __global__ void finalize_changes(int n, uint32_t* x_domain, uint32_t* y_domain, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women);
+__host__ __device__ void get_block_number_and_dimension(int n_threads, int n_SMP, int *block_size, int *n_blocks);
+
+__constant__ int d_n_SMP;
 
 StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector<var<int>::Ptr> & w, std::vector<std::vector<int>> const & mpl, std::vector<std::vector<int>> const & wpl) :
     Constraint(m[0]->getSolver()), _x(m), _y(w), _xpl_vector(mpl), _ypl_vector(wpl)
@@ -89,6 +94,7 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     struct cudaDeviceProp props;
     cudaGetDeviceProperties(&props, device);
     _n_SMP = props.multiProcessorCount;
+    cudaMemcpyToSymbol(d_n_SMP, &_n_SMP, sizeof(int));
 
     //Initializes _x_old_sizes and _y_old_sizes
     for (int i=0; i<_n; i++){
@@ -125,26 +131,11 @@ void StableMatchingGPU::post(){
     /*
         Excute kernels
     */
-
-    // Fun1
-    int n_threads = _length_men_stack + _length_women_stack;
+    int n_threads = max(_length_men_stack + _length_women_stack,1); //At least one warp will be launched
     int n_blocks, block_size;
-    getBlockNumberAndDimension(n_threads,&block_size,&n_blocks);
-    make_domains_coherent<<<n_blocks,block_size,0,_stream>>>(_n, _d_xpl, _d_ypl, _d_xPy, _d_yPx, _d_x_domain, _d_y_domain, _d_stack_mod_men, _d_stack_mod_women, _length_men_stack, _length_women_stack, _d_stack_mod_min_men, _d_length_min_men_stack, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women);
-
-    //Fun2
-    //  completely fills min_men_stack
-    *_length_min_men_stack = _n;
-    for (int i=0;i<_n;i++){
-        _stack_mod_min_men[i]=i;
-    }
-    HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_min_men, _stack_mod_min_men, sizeof(int) * (_n + 1), cudaMemcpyHostToDevice, _stream)); //includes _length_min_men_stack
-    iterateFun2();
-
-    //Fun3
-    n_threads = _n;
-    getBlockNumberAndDimension(n_threads,&block_size,&n_blocks);
-    finalize_changes<<<n_blocks,block_size,0,_stream>>>(_n, _d_x_domain, _d_y_domain, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women, _d_max_men, _d_min_women, _d_max_women);
+    get_block_number_and_dimension(n_threads,_n_SMP,&block_size,&n_blocks);
+    HANDLE_ERROR(cudaMemsetAsync(_d_array_min_mod_men,0,sizeof(int)*(_n+1), _stream)); // sets to 0 d_array_min_mod_men and _d_warp_counter
+    make_domains_coherent<<<n_blocks,block_size,0,_stream>>>(true, _n, _d_xpl, _d_ypl, _d_xPy, _d_yPx, _d_x_domain, _d_y_domain, _d_array_min_mod_men, _d_new_stack_mod_min_men, _d_new_length_min_men_stack, _d_stack_mod_men, _d_stack_mod_women, _length_men_stack, _length_women_stack, _d_stack_mod_min_men, _d_length_min_men_stack, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women, _d_max_men, _d_min_women, _d_max_women, _d_warp_counter);
 
     /*
         Completed kernel execution (not yet synchronized)
@@ -217,6 +208,8 @@ void StableMatchingGPU::propagate(){
     if(_length_women_stack>0){
         HANDLE_ERROR(cudaMemcpyAsync(_d_stack_mod_women, _stack_mod_women, (_length_women_stack) * sizeof(int), cudaMemcpyHostToDevice, _stream));
     }
+    HANDLE_ERROR(cudaMemsetAsync(_d_array_min_mod_men,0,sizeof(int)*(_n+1), _stream)); // sets to 0 d_array_min_mod_men and _d_warp_counter
+
 
     //Copy domains to device
     int first_man, last_man, first_woman, last_woman;
@@ -248,26 +241,10 @@ void StableMatchingGPU::propagate(){
     /*
         Excute kernels
     */
-
-    // Fun1
     int n_threads = _length_men_stack + _length_women_stack;
     int n_blocks, block_size;
-    getBlockNumberAndDimension(n_threads,&block_size,&n_blocks);
-    make_domains_coherent<<<n_blocks,block_size,0,_stream>>>(_n, _d_xpl, _d_ypl, _d_xPy, _d_yPx, _d_x_domain, _d_y_domain, _d_stack_mod_men, _d_stack_mod_women, _length_men_stack, _length_women_stack, _d_stack_mod_min_men, _d_length_min_men_stack, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women);
-
-    //Fun2
-    // updates _length_min_men_stack
-    HANDLE_ERROR(cudaMemcpyAsync(_length_min_men_stack, _d_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, _stream));
-    cudaStreamSynchronize(_stream); // to be able to read _length_min_men_stack
-    
-    if(*_length_min_men_stack>0){
-        iterateFun2();
-    }
-
-    //Fun3
-    n_threads = _n;
-    getBlockNumberAndDimension(n_threads,&block_size,&n_blocks);
-    finalize_changes<<<n_blocks,block_size,0,_stream>>>(_n, _d_x_domain, _d_y_domain, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women, _d_max_men, _d_min_women, _d_max_women);
+    get_block_number_and_dimension(n_threads,_n_SMP,&block_size,&n_blocks);
+    make_domains_coherent<<<n_blocks,block_size,0,_stream>>>(false, _n, _d_xpl, _d_ypl, _d_xPy, _d_yPx, _d_x_domain, _d_y_domain, _d_array_min_mod_men, _d_new_stack_mod_min_men, _d_new_length_min_men_stack, _d_stack_mod_men, _d_stack_mod_women, _length_men_stack, _length_women_stack, _d_stack_mod_min_men, _d_length_min_men_stack, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women, _d_max_men, _d_min_women, _d_max_women, _d_warp_counter);
 
     /*
         Completed kernel execution (not yet synchronized)
@@ -446,21 +423,6 @@ void StableMatchingGPU::updateHostData(){
     }
 }
 
-// Computes the appropriate block size and number of blocks based on the number of threads required and the number of SMPs
-void StableMatchingGPU::getBlockNumberAndDimension(int n_threads, int *block_size, int *n_blocks){
-    if (n_threads/_n_SMP >= 32){ //at least one warp per SMP
-        *n_blocks = _n_SMP;
-        *block_size = (n_threads + *n_blocks - 1) / *n_blocks;
-        // we need full warps
-        if (*block_size<<(32-5)!=0){ // not divisible by 32
-            *block_size = ((*block_size>>5) + 1) << 5; 
-        }
-    } else { //less than one warp per SMP
-        *block_size = 32;
-        *n_blocks = (n_threads + 31) / 32;
-    }
-}
-
 // Repeats Fun2 until new_stack_mod_min_men is empty
 void StableMatchingGPU::iterateFun2(){
     //  empties d_array_min_mod_men
@@ -469,9 +431,9 @@ void StableMatchingGPU::iterateFun2(){
     int n_threads, block_size, n_blocks;
     int *temp_p;
     n_threads = *_length_min_men_stack;
-    getBlockNumberAndDimension(n_threads,&block_size,&n_blocks);
+    get_block_number_and_dimension(n_threads, _n_SMP, &block_size, &n_blocks);
 
-    apply_sm_constraint<<<n_blocks,block_size,0,_stream>>>(_n,_d_xpl,_d_ypl,_d_xPy,_d_yPx,_d_x_domain,_d_y_domain, _d_array_min_mod_men, _d_stack_mod_min_men, _d_length_min_men_stack, _d_new_stack_mod_min_men, _d_new_length_min_men_stack, _d_old_min_men, _d_max_men, _d_max_women, _d_warp_counter);
+    apply_sm_constraint<<<n_blocks,block_size,0,_stream>>>(_n,_d_xpl,_d_ypl,_d_xPy,_d_yPx,_d_x_domain,_d_y_domain, _d_array_min_mod_men, _d_stack_mod_min_men, _d_length_min_men_stack, _d_new_stack_mod_min_men, _d_new_length_min_men_stack, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women, _d_max_men, _d_min_women, _d_max_women, _d_warp_counter);
     HANDLE_ERROR(cudaMemcpyAsync(_new_length_min_men_stack, _d_new_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, _stream));
     cudaStreamSynchronize(_stream);
     
@@ -484,8 +446,8 @@ void StableMatchingGPU::iterateFun2(){
         _d_new_stack_mod_min_men = _d_stack_mod_min_men;
         _d_stack_mod_min_men = temp_p;
         n_threads = *_length_min_men_stack;
-        getBlockNumberAndDimension(n_threads,&block_size,&n_blocks);
-        apply_sm_constraint<<<n_blocks,block_size,0,_stream>>>(_n,_d_xpl,_d_ypl,_d_xPy,_d_yPx,_d_x_domain,_d_y_domain, _d_array_min_mod_men, _d_stack_mod_min_men, _d_length_min_men_stack, _d_new_stack_mod_min_men, _d_new_length_min_men_stack, _d_old_min_men, _d_max_men, _d_max_women, _d_warp_counter);
+        get_block_number_and_dimension(n_threads, _n_SMP, &block_size, &n_blocks);
+        apply_sm_constraint<<<n_blocks,block_size,0,_stream>>>(_n,_d_xpl,_d_ypl,_d_xPy,_d_yPx,_d_x_domain,_d_y_domain, _d_array_min_mod_men, _d_stack_mod_min_men, _d_length_min_men_stack, _d_new_stack_mod_min_men, _d_new_length_min_men_stack, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women, _d_max_men, _d_min_women, _d_max_women, _d_warp_counter);
         HANDLE_ERROR(cudaMemcpyAsync(_new_length_min_men_stack, _d_new_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, _stream));
         cudaStreamSynchronize(_stream);
     }
@@ -516,8 +478,12 @@ __constant__ uint32_t ALL_ONES = 4294967295;
 
 // f1: removes from the women's domains the men who don't have that woman in their list (domain) anymore, and vice versa
 // Modifies only the domains
-__global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* stack_mod_men, int* stack_mod_women, int length_men_stack, int length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women){
+__global__ void make_domains_coherent(bool first_propagation, int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* stack_mod_men, int* stack_mod_women, int length_men_stack, int length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women, int* warp_counter){
     int id = threadIdx.x + blockIdx.x * blockDim.x;
+    //first thread launches f1.5
+    if(id == 0){
+        interludeOne<<<1,32,0,cudaStreamTailLaunch>>>(first_propagation, n, xpl, ypl, xPy, yPx, x_domain, y_domain, array_min_mod_men, stack_mod_min_men, length_min_men_stack, new_stack_mod_min_men, new_length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter);
+    }
     //closes redundant threads
     if (id>= length_men_stack + length_women_stack){
         return;
@@ -561,9 +527,35 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
     }
 }
 
+// f1.5: prepares for and launches f2, or f3 if f2 is not needed
+__global__ void interludeOne(bool first_propagation, int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women, int* warp_counter){
+    int lane_id = threadIdx.x;// % 32;
+    if(first_propagation){ //The first propagation needs extra initialization
+        for(int i=lane_id; i<n; i+=32){ //All threads cooperate to fill the stack
+            stack_mod_min_men[i] = i;
+        }
+        if(lane_id==0){
+            *length_min_men_stack = n;
+        }
+        __syncwarp();
+    }
+    if(lane_id==0){ //The first thread launches f2 (or f3 if f2 can be skipped)
+        *warp_counter = 0;
+        int block_size, n_blocks;
+        if(*length_min_men_stack>0){
+            get_block_number_and_dimension(*length_min_men_stack,d_n_SMP,&block_size,&n_blocks);
+            apply_sm_constraint<<<n_blocks,block_size,0,cudaStreamFireAndForget>>>(n, xpl, ypl, xPy, yPx, x_domain, y_domain, array_min_mod_men, stack_mod_min_men, length_min_men_stack, new_stack_mod_min_men, new_length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter);
+            interludeTwo<<<1,32,0,cudaStreamTailLaunch>>>(n, xpl, ypl, xPy, yPx, x_domain, y_domain, array_min_mod_men, stack_mod_min_men, length_min_men_stack, new_stack_mod_min_men, new_length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter);
+        } else {
+            get_block_number_and_dimension(n,d_n_SMP,&block_size,&n_blocks);
+            finalize_changes<<<n_blocks,block_size,0,cudaStreamFireAndForget>>>(n, x_domain, y_domain, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women);
+        }
+    }
+}
+
 // f2: applies the stable marriage constraint
 // Modifies old_min_men, max_women and x_domain
-__global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* max_men, int* max_women, int* warp_counter){
+__global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women, int* warp_counter){
     __shared__ int flag; // will be equal to *new_length_min_men_stack in the last warp, 0 in every other warp
 
     int id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -681,6 +673,33 @@ __global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yP
     }
 }
 
+// f2.5: prepares for and launches again f2, or f3, or ends early if an empty domain was found
+__global__ void interludeTwo(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women, int* warp_counter){
+    int lane_id = threadIdx.x;// % 32;
+    if (*new_length_min_men_stack < 0){ //Empty domain was found: return
+        return;
+    } else if (*new_length_min_men_stack == 0){ //Can launch f3
+        if(lane_id==0){ //Only the first thread launches f3
+            int block_size, n_blocks;
+            get_block_number_and_dimension(n,d_n_SMP,&block_size,&n_blocks);
+            finalize_changes<<<n_blocks,block_size,0,cudaStreamTailLaunch>>>(n, x_domain, y_domain, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women);
+        }
+    } else { //Launches again f2
+        for(int i=lane_id; i<n; i+=32){ //All threads cooperate to reset the array
+            array_min_mod_men[i] = 0;
+        }
+        __syncwarp();
+        if(lane_id==0){ //Only the first thread may launch a new grid
+            int block_size, n_blocks;
+            get_block_number_and_dimension(*new_length_min_men_stack,d_n_SMP,&block_size,&n_blocks);
+            *length_min_men_stack = 0; //switches the two mod_min_men stacks
+            *warp_counter = 0;
+            apply_sm_constraint<<<n_blocks,block_size,0,cudaStreamFireAndForget>>>(n, xpl, ypl, xPy, yPx, x_domain, y_domain, array_min_mod_men, new_stack_mod_min_men, new_length_min_men_stack, stack_mod_min_men, length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter);
+            interludeTwo<<<1,32,0,cudaStreamTailLaunch>>>(n, xpl, ypl, xPy, yPx, x_domain, y_domain, array_min_mod_men, new_stack_mod_min_men, new_length_min_men_stack, stack_mod_min_men, length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter);
+        }
+    }
+}
+
 //f3: finalizes the changes in the domains and computes the new old_maxes and old_mins
 // Modifies y_domain, old_max_women, old_max_men and old_min_women
 __global__ void finalize_changes(int n, uint32_t* x_domain, uint32_t* y_domain, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women){
@@ -732,4 +751,21 @@ __global__ void finalize_changes(int n, uint32_t* x_domain, uint32_t* y_domain, 
         }
     }
     old_min_women[id]=new_m;
+}
+
+/*
+    Computes the appropriate block size and number of blocks based on the number of threads required and the number of SMPs
+*/
+__host__ __device__ void get_block_number_and_dimension(int n_threads, int n_SMP, int *block_size, int *n_blocks){
+    if (n_threads/n_SMP >= 32){ //at least one warp per SMP
+        *n_blocks = n_SMP;
+        *block_size = (n_threads + *n_blocks - 1) / *n_blocks;
+        // we need full warps
+        if (*block_size<<(32-5)!=0){ // not divisible by 32
+            *block_size = ((*block_size>>5) + 1) << 5; 
+        }
+    } else { //less than one warp per SMP
+        *block_size = 32;
+        *n_blocks = (n_threads + 31) / 32;
+    }
 }

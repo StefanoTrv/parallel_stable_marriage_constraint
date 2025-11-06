@@ -14,14 +14,14 @@ __constant__ int d_n_SMP;
 // Modifies only the domains
 __global__ void make_domains_coherent(bool first_propagation, int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* stack_mod_men, int* stack_mod_women, int length_men_stack, int length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women, int* warp_counter){
     int id = threadIdx.x + blockIdx.x * blockDim.x;
+    //first thread launches f1.5
+    if(id == 0){
+        interludeOne<<<1,32,0,cudaStreamTailLaunch>>>(first_propagation, n, xpl, ypl, xPy, yPx, x_domain, y_domain, array_min_mod_men, stack_mod_min_men, length_min_men_stack, new_stack_mod_min_men, new_length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter);
+    }
     //closes redundant threads
     if (id>= length_men_stack + length_women_stack){
         //printf("Returning %i\n",id);
         return;
-    }
-    //first thread launches f1.5
-    if(id == 0){
-        interludeOne<<<1,32,0,cudaStreamTailLaunch>>>(first_propagation, n, xpl, ypl, xPy, yPx, x_domain, y_domain, array_min_mod_men, stack_mod_min_men, length_min_men_stack, new_stack_mod_min_men, new_length_min_men_stack, old_min_men, old_max_men, old_min_women, old_max_women, max_men, min_women, max_women, warp_counter);
     }
     //printf("Continuing %i\n",id);
     //gets person associated with thread and picks the correct data structures
