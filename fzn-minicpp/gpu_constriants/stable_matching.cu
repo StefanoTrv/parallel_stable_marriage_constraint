@@ -427,36 +427,6 @@ void StableMatchingGPU::updateHostData(){
     }
 }
 
-// Repeats Fun2 until new_stack_mod_min_men is empty
-void StableMatchingGPU::iterateFun2(){
-    //  empties d_array_min_mod_men
-    HANDLE_ERROR(cudaMemsetAsync(_d_array_min_mod_men,0,sizeof(int)*(_n+1), _stream)); // includes _d_warp_counter
-
-    int n_threads, block_size, n_blocks;
-    int *temp_p;
-    n_threads = *_length_min_men_stack;
-    get_block_number_and_dimension(n_threads, _n_SMP, &block_size, &n_blocks);
-
-    apply_sm_constraint<<<n_blocks,block_size,0,_stream>>>(_n,_d_xpl,_d_ypl,_d_xPy,_d_yPx,_d_x_domain,_d_y_domain, _d_array_min_mod_men, _d_stack_mod_min_men, _d_length_min_men_stack, _d_new_stack_mod_min_men, _d_new_length_min_men_stack, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women, _d_max_men, _d_min_women, _d_max_women, _d_warp_counter);
-    HANDLE_ERROR(cudaMemcpyAsync(_new_length_min_men_stack, _d_new_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, _stream));
-    cudaStreamSynchronize(_stream);
-    
-    while(*_new_length_min_men_stack>0){
-        HANDLE_ERROR(cudaMemsetAsync(_d_array_min_mod_men,0,sizeof(int)*(_n+1), _stream)); // includes _d_warp_counter
-        *_length_min_men_stack = *_new_length_min_men_stack;
-        *_new_length_min_men_stack = 0;
-        HANDLE_ERROR(cudaMemcpyAsync(_d_length_min_men_stack, _length_min_men_stack, sizeof(int) * 2, cudaMemcpyHostToDevice, _stream));
-        temp_p = _d_new_stack_mod_min_men;
-        _d_new_stack_mod_min_men = _d_stack_mod_min_men;
-        _d_stack_mod_min_men = temp_p;
-        n_threads = *_length_min_men_stack;
-        get_block_number_and_dimension(n_threads, _n_SMP, &block_size, &n_blocks);
-        apply_sm_constraint<<<n_blocks,block_size,0,_stream>>>(_n,_d_xpl,_d_ypl,_d_xPy,_d_yPx,_d_x_domain,_d_y_domain, _d_array_min_mod_men, _d_stack_mod_min_men, _d_length_min_men_stack, _d_new_stack_mod_min_men, _d_new_length_min_men_stack, _d_old_min_men, _d_old_max_men, _d_old_min_women, _d_old_max_women, _d_max_men, _d_min_women, _d_max_women, _d_warp_counter);
-        HANDLE_ERROR(cudaMemcpyAsync(_new_length_min_men_stack, _d_new_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, _stream));
-        cudaStreamSynchronize(_stream);
-    }
-}
-
 __device__ int getBitCuda(uint32_t* bitmap, int index){
     int offset = index % 32;
     return (bitmap[index/32] << offset) >> (sizeof (uint32_t)*8 - 1);
