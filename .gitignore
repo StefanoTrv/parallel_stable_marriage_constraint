@@ -67,3 +67,13 @@ benchmark/serial_input.mzn
 #SM_alg
 SM_alg/out/
 SM_alg/config.txt
+
+#sp benchmark files
+single_propagation_benchmark/out/
+single_propagation_benchmark/config.txt
+single_propagation_benchmark/parallel_input.mzn
+single_propagation_benchmark/serial_input.mzn
+single_propagation_benchmark/parallel_input.fzn
+single_propagation_benchmark/serial_input.fzn
+single_propagation_benchmark/clean_parallel_input.fzn
+single_propagation_benchmark/clean_serial_input.fzn
