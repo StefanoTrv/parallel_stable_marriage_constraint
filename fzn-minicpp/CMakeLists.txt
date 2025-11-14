@@ -6,6 +6,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 enable_language(CXX)
 
+#Conditional compilation for benchmarking STC propagations
+option(BENCHMARK_STC_PROPAGATIONS "Enable STC propagation benchmarks" OFF)
+if(BENCHMARK_STC_PROPAGATIONS)
+    add_compile_definitions(BENCHMARK_STC_PROPAGATIONS=1)
+endif()
+unset(BENCHMARK_STC_PROPAGATIONS CACHE)
+
 # CUDA
 find_package(CUDAToolkit REQUIRED)
 set(CMAKE_CUDA_COMPILER ${CUDAToolkit_NVCC_EXECUTABLE})
