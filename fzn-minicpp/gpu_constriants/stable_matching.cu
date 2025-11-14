@@ -1,5 +1,8 @@
 #include "stable_matching.cuh"
 #include "error_handler.cuh"
+#if defined(BENCHMARK_STC_PROPAGATIONS) && BENCHMARK_STC_PROPAGATIONS==1
+    #include <chrono>
+#endif
 
 const uint32_t UNS_ONE = 1;
 
@@ -104,6 +107,23 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
 }
 
 void StableMatchingGPU::post(){
+    #if defined(BENCHMARK_STC_PROPAGATIONS) && BENCHMARK_STC_PROPAGATIONS==1
+        int people_modified = 0;
+        for(int i=0; i<_n;i++){
+            if (_x[i]->size() != _x_old_sizes[i]){
+                people_modified++;
+            }
+            if (_y[i]->size() != _y_old_sizes[i]){
+                people_modified++;
+            }
+        }
+        int cumulative_old_ranges = 0;
+        for(int i=0; i<_n;i++){
+            cumulative_old_ranges += _x_old_sizes[i];
+            cumulative_old_ranges += _y_old_sizes[i];
+        }
+        auto start = std::chrono::high_resolution_clock::now();
+    #endif
     HANDLE_ERROR(cudaMemsetAsync(_d_array_min_mod_men,0,sizeof(int)*(_n+1), _stream)); // sets to 0 d_array_min_mod_men and _d_warp_counter
     int _length_men_stack, _length_women_stack;
     _length_men_stack = 0;
@@ -169,9 +189,36 @@ void StableMatchingGPU::post(){
         _x_old_sizes[i] = _x[i]->size();
         _y_old_sizes[i] = _y[i]->size();
     }
+
+    #if defined(BENCHMARK_STC_PROPAGATIONS) && BENCHMARK_STC_PROPAGATIONS==1
+        auto end = std::chrono::high_resolution_clock::now();
+        // Calculate the duration in microseconds
+        std::chrono::microseconds duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        // Type, n, initially_free_men, people_modified, cumulative_old_ranges, time
+        std::cout << "Post, " << _n << ", " << _n << ", " << people_modified << ", " << cumulative_old_ranges << ", " << duration.count() << "\n";
+    #endif
 }
 
 void StableMatchingGPU::propagate(){
+    #if defined(BENCHMARK_STC_PROPAGATIONS) && BENCHMARK_STC_PROPAGATIONS==1
+        int people_modified = 0;
+        int initially_free_men;
+        for(int i=0; i<_n;i++){
+            if (_x[i]->size() != _x_old_sizes[i]){
+                people_modified++;
+                initially_free_men++;
+            }
+            if (_y[i]->size() != _y_old_sizes[i]){
+                people_modified++;
+            }
+        }
+        int cumulative_old_ranges = 0;
+        for(int i=0; i<_n;i++){
+            cumulative_old_ranges += _x_old_sizes[i];
+            cumulative_old_ranges += _y_old_sizes[i];
+        }
+        auto start = std::chrono::high_resolution_clock::now();
+    #endif
     //Prepare other data structures
     int _length_men_stack, _length_women_stack;
     _length_men_stack = 0;
@@ -265,6 +312,14 @@ void StableMatchingGPU::propagate(){
         _x_old_sizes[i]=_x[i]->size();
         _y_old_sizes[i]=_y[i]->size();
     }
+
+    #if defined(BENCHMARK_STC_PROPAGATIONS) && BENCHMARK_STC_PROPAGATIONS==1
+        auto end = std::chrono::high_resolution_clock::now();
+        // Calculate the duration in microseconds
+        std::chrono::microseconds duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        // Type, n, initially_free_men, people_modified, cumulative_old_ranges, time
+        std::cout << "Propagate, " << _n << ", " << initially_free_men << ", " << people_modified << ", " << cumulative_old_ranges << ", " << duration.count() << "\n";
+    #endif
 }
 
 void StableMatchingGPU::fillStacks(int* _length_men_stack, int* _length_women_stack){

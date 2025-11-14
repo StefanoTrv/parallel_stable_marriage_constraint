@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 3.22)
 project(fzn-minicpp)
 
+#Conditional compilation for benchmarking STC propagations
+option(BENCHMARK_STC_PROPAGATIONS "Enable STC propagation benchmarks" OFF)
+if(BENCHMARK_STC_PROPAGATIONS)
+    add_compile_definitions(BENCHMARK_STC_PROPAGATIONS=1)
+endif()
+unset(BENCHMARK_STC_PROPAGATIONS CACHE)
+
 # C++
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
