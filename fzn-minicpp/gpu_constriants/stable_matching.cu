@@ -210,7 +210,9 @@ void StableMatchingGPU::propagate(){
         for(int i=0; i<_n;i++){
             if (_x[i]->size() != _x_old_sizes[i]){
                 people_modified++;
-                initially_free_men++;
+                if (_x[i]->min() != _old_min_men_trail[i]){ // if min is changed
+                    initially_free_men++;
+                }
             }
             if (_y[i]->size() != _y_old_sizes[i]){
                 people_modified++;
