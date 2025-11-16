@@ -206,7 +206,7 @@ void StableMatchingGPU::post(){
 void StableMatchingGPU::propagate(){
     #if defined(BENCHMARK_STC_PROPAGATIONS) && BENCHMARK_STC_PROPAGATIONS==1
         int people_modified = 0;
-        int initially_free_men;
+        int initially_free_men = 0;
         for(int i=0; i<_n;i++){
             if (_x[i]->size() != _x_old_sizes[i]){
                 people_modified++;
