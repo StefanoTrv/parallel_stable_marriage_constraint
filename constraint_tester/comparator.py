@@ -36,7 +36,7 @@ def main():
         parallel_error_string = result_parallel.stderr
         #if parallel_error_string != "" or "ERROR" in parallel_output: #commented because of issues with minizinc's latest release
         if "ERROR" in parallel_output:
-            print("Execution of solver with parallel constraint ended in error! Terminating...\nError details:\n"+parallel_error_string+"\nMinizinc output:\n"+serial_output)
+            print("Execution of solver with parallel constraint ended in error! Terminating...\nError details:\n"+parallel_error_string+"\nMinizinc output:\n"+parallel_output)
             return
         if(serial_output != parallel_output):
             shutil.copyfile("serial_input.mzn", "out/error_"+str(errors)+"_serial.mzn")
