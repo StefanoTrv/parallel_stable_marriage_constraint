@@ -76,7 +76,7 @@ int main(int argc, char *argv[]) {
 
     //Device memory allocation
     int *d_xpl;
-    HANDLE_ERROR(cudaMalloc((void**)&d_xpl, sizeof(int) * (n * n * 4 + n * 12 + 3)));
+    HANDLE_ERROR(cudaMalloc((void**)&d_xpl, sizeof(int) * (n * n * 4 + n * 12 + 2)));
     int *d_ypl = d_xpl + n * n;
     int *d_xPy = d_ypl + n * n;
     int *d_yPx = d_xPy + n * n;
@@ -94,7 +94,6 @@ int main(int argc, char *argv[]) {
     int *d_new_length_min_men_stack = d_length_min_men_stack + 1;
     int *d_new_stack_mod_min_men = d_new_length_min_men_stack + 1;
     int *d_array_min_mod_men = d_new_stack_mod_min_men + n;
-    int *d_warp_counter = d_array_min_mod_men + n;
 
     //Prepares all the data structures
     build_reverse_matrix(n,xpl,xPy);
@@ -169,7 +168,7 @@ int main(int argc, char *argv[]) {
     //debug
 
     //empties d_array_min_mod_men
-    HANDLE_ERROR(cudaMemsetAsync(d_array_min_mod_men,0,sizeof(int)*(n+1), stream));
+    HANDLE_ERROR(cudaMemsetAsync(d_array_min_mod_men,0,sizeof(int)*n, stream));
 
     //completely fills min_men_stack
     *length_min_men_stack = n;
@@ -185,7 +184,7 @@ int main(int argc, char *argv[]) {
     //printf("Prima di lancio di f2: %i, %i, %i\n", n_threads, n_blocks,block_size);
 
     //printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
-    apply_sm_constraint<<<n_blocks,block_size,0,stream>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_max_men, d_max_women, d_warp_counter);
+    apply_sm_constraint<<<n_blocks,block_size,0,stream>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_max_men, d_max_women);
     HANDLE_ERROR(cudaMemcpyAsync(new_length_min_men_stack, d_new_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, stream));
     cudaStreamSynchronize(stream);
     //printf("new_length_min_men_stack vale: %i\n",*new_length_min_men_stack);
@@ -197,7 +196,7 @@ int main(int argc, char *argv[]) {
         //print_domains(n,x_domain,y_domain);
         //debug
 
-        HANDLE_ERROR(cudaMemsetAsync(d_array_min_mod_men,0,sizeof(int)*(n+1), stream));
+        HANDLE_ERROR(cudaMemsetAsync(d_array_min_mod_men,0,sizeof(int)*n, stream));
         *length_min_men_stack = *new_length_min_men_stack;
         *new_length_min_men_stack = 0;
         HANDLE_ERROR(cudaMemcpyAsync(d_length_min_men_stack, length_min_men_stack, sizeof(int) * 2, cudaMemcpyHostToDevice, stream));
@@ -206,7 +205,7 @@ int main(int argc, char *argv[]) {
         d_stack_mod_min_men = temp_p;
         n_threads = *length_min_men_stack;
         get_block_number_and_dimension(n_threads,n_SMP,&block_size,&n_blocks);
-        apply_sm_constraint<<<n_blocks,block_size,0,stream>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_max_men, d_max_women,d_warp_counter);
+        apply_sm_constraint<<<n_blocks,block_size,0,stream>>>(n,d_xpl,d_ypl,d_xPy,d_yPx,d_x_domain,d_y_domain, d_array_min_mod_men, d_stack_mod_min_men, d_length_min_men_stack, d_new_stack_mod_min_men, d_new_length_min_men_stack, d_old_min_men, d_max_men, d_max_women);
         HANDLE_ERROR(cudaMemcpyAsync(new_length_min_men_stack, d_new_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, stream));
         cudaStreamSynchronize(stream);
     }
@@ -286,10 +285,6 @@ void get_block_number_and_dimension(int n_threads, int n_SMP, int *block_size, i
     if (n_threads/n_SMP >= 32){ //at least one warp per SMP
         *n_blocks = n_SMP;
         *block_size = (n_threads + *n_blocks - 1) / *n_blocks;
-        // we need full warps
-        if (*block_size<<(32-5)!=0){ // not divisible by 32
-            *block_size = ((*block_size>>5) + 1) << 5; 
-        }
     } else { //less than one warp per SMP
         *block_size = 32;
         *n_blocks = (n_threads + 31) / 32;

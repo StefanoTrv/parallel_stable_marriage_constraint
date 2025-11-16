@@ -7,7 +7,7 @@
 const uint32_t UNS_ONE = 1;
 
 __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* stack_mod_men, int* stack_mod_women, int length_men_stack, int length_women_stack, int* stack_mod_min_men, int* length_min_men_stack, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women);
-__global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* max_men, int* max_women, int* warp_counter);
+__global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* max_men, int* max_women);
 __global__ void finalize_changes(int n, uint32_t* x_domain, uint32_t* y_domain, int* old_min_men, int* old_max_men, int* old_min_women, int* old_max_women, int* max_men, int* min_women, int* max_women);
 
 StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector<var<int>::Ptr> & w, std::vector<std::vector<int>> const & mpl, std::vector<std::vector<int>> const & wpl) :
@@ -44,7 +44,7 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     _stack_mod_women = _stack_mod_men + _n;
 
     //Device memory allocation
-    HANDLE_ERROR(cudaMalloc((void**)&_d_xpl, sizeof(int) * (_n * _n * 4 + _n * 12 + 3)));
+    HANDLE_ERROR(cudaMalloc((void**)&_d_xpl, sizeof(int) * (_n * _n * 4 + _n * 12 + 2)));
     _d_ypl = _d_xpl + _n * _n;
     _d_xPy = _d_ypl + _n * _n;
     _d_yPx = _d_xPy + _n * _n;
@@ -62,7 +62,6 @@ StableMatchingGPU::StableMatchingGPU(std::vector<var<int>::Ptr> & m, std::vector
     _d_stack_mod_women = _d_stack_mod_men + _n;
     _d_new_stack_mod_min_men = _d_stack_mod_women + _n;
     _d_array_min_mod_men = _d_new_stack_mod_min_men + _n;
-    _d_warp_counter = _d_array_min_mod_men + _n;
     
     //Initialize trailable vectors
     for (int i = 0; i < _n; i++){
@@ -506,10 +505,6 @@ void StableMatchingGPU::getBlockNumberAndDimension(int n_threads, int *block_siz
     if (n_threads/_n_SMP >= 32){ //at least one warp per SMP
         *n_blocks = _n_SMP;
         *block_size = (n_threads + *n_blocks - 1) / *n_blocks;
-        // we need full warps
-        if (*block_size<<(32-5)!=0){ // not divisible by 32
-            *block_size = ((*block_size>>5) + 1) << 5; 
-        }
     } else { //less than one warp per SMP
         *block_size = 32;
         *n_blocks = (n_threads + 31) / 32;
@@ -519,19 +514,19 @@ void StableMatchingGPU::getBlockNumberAndDimension(int n_threads, int *block_siz
 // Repeats Fun2 until new_stack_mod_min_men is empty
 void StableMatchingGPU::iterateFun2(){
     //  empties d_array_min_mod_men
-    HANDLE_ERROR(cudaMemsetAsync(_d_array_min_mod_men,0,sizeof(int)*(_n+1), _stream)); // includes _d_warp_counter
+    HANDLE_ERROR(cudaMemsetAsync(_d_array_min_mod_men,0,sizeof(int)*(_n), _stream));
 
     int n_threads, block_size, n_blocks;
     int *temp_p;
     n_threads = *_length_min_men_stack;
     getBlockNumberAndDimension(n_threads,&block_size,&n_blocks);
 
-    apply_sm_constraint<<<n_blocks,block_size,0,_stream>>>(_n,_d_xpl,_d_ypl,_d_xPy,_d_yPx,_d_x_domain,_d_y_domain, _d_array_min_mod_men, _d_stack_mod_min_men, _d_length_min_men_stack, _d_new_stack_mod_min_men, _d_new_length_min_men_stack, _d_old_min_men, _d_max_men, _d_max_women, _d_warp_counter);
+    apply_sm_constraint<<<n_blocks,block_size,0,_stream>>>(_n,_d_xpl,_d_ypl,_d_xPy,_d_yPx,_d_x_domain,_d_y_domain, _d_array_min_mod_men, _d_stack_mod_min_men, _d_length_min_men_stack, _d_new_stack_mod_min_men, _d_new_length_min_men_stack, _d_old_min_men, _d_max_men, _d_max_women);
     HANDLE_ERROR(cudaMemcpyAsync(_new_length_min_men_stack, _d_new_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, _stream));
     cudaStreamSynchronize(_stream);
     
     while(*_new_length_min_men_stack>0){
-        HANDLE_ERROR(cudaMemsetAsync(_d_array_min_mod_men,0,sizeof(int)*(_n+1), _stream)); // includes _d_warp_counter
+        HANDLE_ERROR(cudaMemsetAsync(_d_array_min_mod_men,0,sizeof(int)*_n, _stream));
         *_length_min_men_stack = *_new_length_min_men_stack;
         *_new_length_min_men_stack = 0;
         HANDLE_ERROR(cudaMemcpyAsync(_d_length_min_men_stack, _length_min_men_stack, sizeof(int) * 2, cudaMemcpyHostToDevice, _stream));
@@ -540,7 +535,7 @@ void StableMatchingGPU::iterateFun2(){
         _d_stack_mod_min_men = temp_p;
         n_threads = *_length_min_men_stack;
         getBlockNumberAndDimension(n_threads,&block_size,&n_blocks);
-        apply_sm_constraint<<<n_blocks,block_size,0,_stream>>>(_n,_d_xpl,_d_ypl,_d_xPy,_d_yPx,_d_x_domain,_d_y_domain, _d_array_min_mod_men, _d_stack_mod_min_men, _d_length_min_men_stack, _d_new_stack_mod_min_men, _d_new_length_min_men_stack, _d_old_min_men, _d_max_men, _d_max_women, _d_warp_counter);
+        apply_sm_constraint<<<n_blocks,block_size,0,_stream>>>(_n,_d_xpl,_d_ypl,_d_xPy,_d_yPx,_d_x_domain,_d_y_domain, _d_array_min_mod_men, _d_stack_mod_min_men, _d_length_min_men_stack, _d_new_stack_mod_min_men, _d_new_length_min_men_stack, _d_old_min_men, _d_max_men, _d_max_women);
         HANDLE_ERROR(cudaMemcpyAsync(_new_length_min_men_stack, _d_new_length_min_men_stack, sizeof(int), cudaMemcpyDeviceToHost, _stream));
         cudaStreamSynchronize(_stream);
     }
@@ -618,121 +613,77 @@ __global__ void make_domains_coherent(int n, int* xpl, int* ypl, int* xPy, int* 
 
 // f2: applies the stable marriage constraint
 // Modifies old_min_men, max_women and x_domain
-__global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* max_men, int* max_women, int* warp_counter){
-    __shared__ int flag; // will be equal to *new_length_min_men_stack in the last warp, 0 in every other warp
-
+__global__ void apply_sm_constraint(int n, int* xpl, int* ypl, int* xPy, int* yPx, uint32_t* x_domain, uint32_t* y_domain, int* array_min_mod_men, int* stack_mod_min_men, int* length_min_men_stack, int* new_stack_mod_min_men, int* new_length_min_men_stack, int* old_min_men, int* max_men, int* max_women){
     int id = threadIdx.x + blockIdx.x * blockDim.x;
+    //closes redundant threads
+    if (id>= *length_min_men_stack){
+        return;
+    }
 
-    // These values will be used later
-    int lane_id = threadIdx.x % 32;
-    int warpsPerBlock = (blockDim.x + 31) / 32;
-    int warpTotal = warpsPerBlock * gridDim.x; // gridDim.x = number of blocks
-    int currentCount;
+    //finds man assigned to this thread
+    int m = stack_mod_min_men[id];
 
     //the variables named *_val represent the value of some person in the domain of another specific person of the opposite sex
-    int m;
     int w_index, w;
     int p_val, m_val;
     int succ_val, succ;
     int m_ith, w_val;
 
-    //finds man assigned to this thread
-    if(id<*length_min_men_stack){//If to avoid out of bounds access by still active redundant threads
-        m = stack_mod_min_men[id];
-    }
-    
-    //This external cycle allows the last warp to execute again, if appropriate
+    //the thread cycles as long as it has a man assigned to it
     while(1){
-        //the thread cycles as long as it has a man assigned to it
-        while(id < *length_min_men_stack){//Avoids memory access errors while keeping all warps active
-            //finds the first woman remaining in m's domain/list
-            w_index = old_min_men[m];
-            if(w_index>max_men[m]){//empty domain
-                *new_length_min_men_stack = -n; //avoids further launches of f2 if there is an empty domain
-                break;
-            }else if(getDomainBitCuda(x_domain,m,w_index,n)){//value in domain
-                w = xpl[m*n+w_index];
+        //finds the first woman remaining in m's domain/list
+        w_index = old_min_men[m];
+        if(w_index>max_men[m]){//empty domain
+            *new_length_min_men_stack = -n; //avoids further launches of f2 if there is an empty domain
+            return;
+        }else if(getDomainBitCuda(x_domain,m,w_index,n)){//value in domain
+            w = xpl[m*n+w_index];
 
-                m_val = yPx[w*n+m];
+            m_val = yPx[w*n+m];
 
-                //atomic read-and-write of max_women[w]
-                p_val = atomicMin(max_women+w, m_val);
+            //atomic read-and-write of max_women[w]
+            p_val = atomicMin(max_women+w, m_val);
 
-                if(m_val > p_val){//w prefers p to m
-                    old_min_men[m]=w_index+1; //atomicMax could be used, but it would very rarely make a difference
-                    //continue;//continues with the same m
-                } else if(p_val==m_val){//w is already with m
-                    break;//the thread has no free man to find a woman for
-                } else {//m_val<p_val, that is w prefers m to p
-                    succ_val = m_val + 1;
-                    while(succ_val<=p_val){
-                        succ = ypl[w*n+succ_val];
-                        delDomainBitCuda(x_domain,succ,xPy[succ*n+w],n);
-                        succ_val++;
-                    }
-                    m = ypl[w*n+p_val];
-                    //continue;//continues with m:=p
-                }
-            }else{//value not in domain
+            if(m_val > p_val){//w prefers p to m
                 old_min_men[m]=w_index+1; //atomicMax could be used, but it would very rarely make a difference
-                w = xpl[m*n+w_index];
-                m_val = yPx[w*n+m];
-                //atomic read-and-write of max_women[w]
-                p_val = atomicMin(max_women+w, m_val-1);
-                for(int i = m_val+1; i<=p_val; i++){//remove that woman from all the men that were removed from her domain (no need for m_val since the domains are coherent)
-                    if(getDomainBitCuda(y_domain,w,i,n)){//value wasn't already removed
-                        m_ith=  ypl[w*n+i];
-                        w_val = xPy[m_ith*n+w];
-                        delDomainBitCuda(x_domain,m_ith,w_val,n);
-                    }
+                //continue;//continues with the same m
+            } else if(p_val==m_val){//w is already with m
+                return;//the thread has no free man to find a woman for
+            } else {//m_val<p_val, that is w prefers m to p
+                succ_val = m_val + 1;
+                while(succ_val<=p_val){
+                    succ = ypl[w*n+succ_val];
+                    delDomainBitCuda(x_domain,succ,xPy[succ*n+w],n);
+                    succ_val++;
                 }
-                if(p_val>m_val-1){//checks if the min of the last man has changed (the condition checks if the max of the woman changed)
-                    m_ith=  ypl[w*n+p_val]; //necessary if a domain is empty
-                    w_val = xPy[m_ith*n+w]; //necessary if a domain is empty
-
-                    //marks the man as needing to be updated
-                    if(!atomicExch(&(array_min_mod_men[m_ith]),1)){ //atomic exchange to avoid duplicates (which could overflow the stack)
-                        new_stack_mod_min_men[atomicAdd(new_length_min_men_stack,1)]=m_ith; //adds man to new stack
-                    }
-
+                m = ypl[w*n+p_val];
+                //continue;//continues with m:=p
+            }
+        }else{//value not in domain
+            old_min_men[m]=w_index+1; //atomicMax could be used, but it would very rarely make a difference
+            w = xpl[m*n+w_index];
+            m_val = yPx[w*n+m];
+            //atomic read-and-write of max_women[w]
+            p_val = atomicMin(max_women+w, m_val-1);
+            for(int i = m_val+1; i<=p_val; i++){//remove that woman from all the men that were removed from her domain (no need for m_val since the domains are coherent)
+                if(getDomainBitCuda(y_domain,w,i,n)){//value wasn't already removed
+                    m_ith=  ypl[w*n+i];
+                    w_val = xPy[m_ith*n+w];
+                    delDomainBitCuda(x_domain,m_ith,w_val,n);
                 }
             }
+            if(p_val>m_val-1){//checks if the min of the last man has changed (the condition checks if the max of the woman changed)
+                m_ith=  ypl[w*n+p_val]; //necessary if a domain is empty
+                w_val = xPy[m_ith*n+w]; //necessary if a domain is empty
 
-        }
-        __syncwarp();
-        //Checks if this warp is the last active warp
-        if (lane_id==0){
-            currentCount = atomicAdd(warp_counter,1);
-            if (currentCount + 1 >= warpTotal){ //greater for when it's not the first re-run
-                //Using *new_length_min_men_stack causes termination when there's an empty domain and facilitates the reset of the data structures
-                flag = atomicAdd(new_length_min_men_stack,0); //the atomic operation ensures it is reading the up-to-date value
-            } else {
-                flag = 0;
+                //marks the man as needing to be updated
+                if(!atomicExch(&(array_min_mod_men[m_ith]),1)){ //atomic exchange to avoid duplicates (which could overflow the stack)
+                    new_stack_mod_min_men[atomicAdd(new_length_min_men_stack,1)]=m_ith; //adds man to new stack
+                }
+
             }
         }
-        __syncwarp();
-        //If it's not the last active warp, there are no new free men, or an empty domain was found, it returns
-        if (flag <= 0){
-            return;
-        }
-        //If there are too many newly freed men, it returns
-        if (flag > 32){
-            return;
-        }
-        //First thread sets the variable
-        if (lane_id==0){
-            *new_length_min_men_stack = 0;
-            *length_min_men_stack = flag;
-        }
-        //The array is set in parallel
-        for(int i=lane_id; i<n; i+=32){
-            array_min_mod_men[i] = 0;
-        }
-        if (lane_id<flag){
-            m = new_stack_mod_min_men[lane_id];
-        }
-        id = lane_id; //New id after all the other warps have finished
-        __syncwarp();
+        
     }
 }
 

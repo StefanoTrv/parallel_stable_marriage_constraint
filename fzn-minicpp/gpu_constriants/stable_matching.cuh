@@ -39,7 +39,6 @@ class StableMatchingGPU : public Constraint
         int *_d_max_men, *_d_min_women, *_d_max_women;
         int *_d_length_min_men_stack, *_d_new_length_min_men_stack;
         int *_d_new_stack_mod_min_men, *_d_array_min_mod_men;
-        int *_d_warp_counter;
 
 
     // Constraint methods
